@@ -508,6 +508,22 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 
 	QCoreApplication::addLibraryPath(".");
 
+#ifdef _WIN32
+	/* Also add the executable directory explicitly for Qt plugin discovery.
+	 * addLibraryPath(".") only works if CWD == exe dir at launch time. */
+	{
+		wchar_t exe_path[MAX_PATH];
+		if (GetModuleFileNameW(nullptr, exe_path, MAX_PATH)) {
+			std::wstring ws(exe_path);
+			size_t pos = ws.find_last_of(L"\\/");
+			if (pos != std::wstring::npos)
+				ws = ws.substr(0, pos);
+			QCoreApplication::addLibraryPath(
+				QString::fromStdWString(ws));
+		}
+	}
+#endif
+
 #if __APPLE__
 	InstallNSApplicationSubclass();
 	InstallNSThreadLocks();

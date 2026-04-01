@@ -1,5 +1,14 @@
 #include "CricNodeFixtureBrowser.hpp"
 
+#include <ui-config.h>
+#ifdef BROWSER_AVAILABLE
+#include <browser-panel.hpp>
+extern QCef *cef;
+#endif
+
+#include <widgets/OBSBasic.hpp>
+#include <util/base.h>
+
 #include <QDate>
 #include <QDesktopServices>
 #include <QHeaderView>
@@ -58,13 +67,11 @@ CricNodeFixtureBrowser::CricNodeFixtureBrowser(QWidget *parent) : QDialog(parent
 	dateFilter->setEnabled(false);
 	connect(dateFilterCheck, &QCheckBox::toggled, this, [this](bool checked) {
 		dateFilter->setEnabled(checked);
-		/* Re-filter if we already have results */
 		if (!allFixtures.empty()) {
 			fixtures.clear();
 			if (checked) {
 				QDate d = dateFilter->date();
 				for (auto &f : allFixtures) {
-					/* Simple date string match */
 					QString dateStr = QString::fromStdString(f.date).toLower();
 					QString monthName = d.toString("MMM").toLower();
 					bool dayMatch = dateStr.contains(QString::number(d.day()));
@@ -157,7 +164,10 @@ CricNodeFixtureBrowser::CricNodeFixtureBrowser(QWidget *parent) : QDialog(parent
 	OnProviderChanged(0);
 }
 
-CricNodeFixtureBrowser::~CricNodeFixtureBrowser() {}
+CricNodeFixtureBrowser::~CricNodeFixtureBrowser()
+{
+	CleanupCefBrowser();
+}
 
 void CricNodeFixtureBrowser::OnProviderChanged(int index)
 {
@@ -233,15 +243,16 @@ void CricNodeFixtureBrowser::OnBrowseWebClicked()
 		QDesktopServices::openUrl(QUrl(url));
 }
 
+/* ===================== DCL ===================== */
+
 void CricNodeFixtureBrowser::FetchDclFixtures()
 {
 	SetStatus("Fetching DCL fixtures...");
 	progressBar->setVisible(true);
-	progressBar->setRange(0, 0); /* indeterminate */
+	progressBar->setRange(0, 0);
 	dclPagesLoaded = 0;
 	dclTotalPages = 10;
 
-	/* Fetch first page */
 	QUrl url("https://dallascricket.org:3000/api/getmatchlists");
 	QUrlQuery query;
 	query.addQueryItem("offset", "0");
@@ -256,6 +267,8 @@ void CricNodeFixtureBrowser::FetchDclFixtures()
 	request.setTransferTimeout(30000);
 	networkManager->get(request);
 }
+
+/* ===================== Play-Cricket ===================== */
 
 void CricNodeFixtureBrowser::FetchPlayCricketFixtures()
 {
@@ -282,6 +295,8 @@ void CricNodeFixtureBrowser::FetchPlayCricketFixtures()
 	networkManager->get(request);
 }
 
+/* ===================== PlayHQ ===================== */
+
 void CricNodeFixtureBrowser::FetchPlayHQFixtures()
 {
 	QString gradeId = idInput->text().trimmed();
@@ -303,6 +318,8 @@ void CricNodeFixtureBrowser::FetchPlayHQFixtures()
 	networkManager->get(request);
 }
 
+/* ===================== CricClubs ===================== */
+
 void CricNodeFixtureBrowser::FetchCricClubsFixtures()
 {
 	QString clubId = idInput->text().trimmed();
@@ -312,25 +329,249 @@ void CricNodeFixtureBrowser::FetchCricClubsFixtures()
 	}
 
 	cricClubsClubId = clubId.toStdString();
+	cefRetryCount = 0;
 
 	SetStatus("Fetching CricClubs fixtures...");
 	progressBar->setVisible(true);
 	progressBar->setRange(0, 0);
 
-	int currentYear = QDate::currentDate().year();
-	QUrl url(QString("https://cricclubs.com/club/fixtures.do?clubId=%1&league=All&year=%2&allseries=true")
-			 .arg(clubId)
-			 .arg(currentYear));
-
-	QNetworkRequest request(url);
-	request.setRawHeader("User-Agent",
-			     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-			     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-	request.setRawHeader("Accept", "text/html,application/xhtml+xml");
-	request.setRawHeader("Accept-Language", "en-US,en;q=0.9");
-	request.setTransferTimeout(30000);
-	networkManager->get(request);
+#ifdef BROWSER_AVAILABLE
+	if (cef && cef->initialized()) {
+		FetchCricClubsViaCef();
+		return;
+	}
+	blog(LOG_WARNING, "[CricNode] CEF not available, CricClubs fixture fetch won't work");
+#endif
+	SetStatus("Browser engine not available. Click \"Open in Browser\" to view fixtures manually.");
+	progressBar->setVisible(false);
 }
+
+void CricNodeFixtureBrowser::FetchCricClubsViaCef()
+{
+#ifdef BROWSER_AVAILABLE
+	OBSBasic::InitBrowserPanelSafeBlock();
+
+	QString clubId = QString::fromStdString(cricClubsClubId);
+	int currentYear = QDate::currentDate().year();
+	std::string url =
+		QString("https://cricclubs.com/club/fixtures.do?clubId=%1&league=All&year=%2&allseries=true")
+			.arg(clubId)
+			.arg(currentYear)
+			.toStdString();
+
+	/* Clean up any previous browser */
+	CleanupCefBrowser();
+
+	cefBrowser = cef->create_widget(this, url, nullptr);
+	if (!cefBrowser) {
+		blog(LOG_WARNING, "[CricNode] Failed to create CEF widget");
+		SetStatus("Failed to create browser. Click \"Open in Browser\" instead.");
+		progressBar->setVisible(false);
+		return;
+	}
+
+	/* Hide the browser — we only need it for JS execution */
+	cefBrowser->setFixedSize(1, 1);
+	cefBrowser->hide();
+
+	SetStatus("Loading CricClubs page in browser...");
+
+	/* Listen for title changes — we set document.title to return JS results */
+	connect(cefBrowser, &QCefWidget::titleChanged, this,
+		&CricNodeFixtureBrowser::OnCefTitleChanged);
+
+	/* After the page has had time to load and render, inject extraction JS.
+	 * CricClubs pages are JS-heavy; 3 seconds is a safe delay
+	 * (same approach as the Android app which uses a 1s postDelayed). */
+	QTimer::singleShot(3500, this, &CricNodeFixtureBrowser::InjectCricClubsExtractionJs);
+
+	blog(LOG_INFO, "[CricNode] Loading CricClubs fixtures via CEF: %s", url.c_str());
+#endif
+}
+
+void CricNodeFixtureBrowser::InjectCricClubsExtractionJs()
+{
+#ifdef BROWSER_AVAILABLE
+	if (!cefBrowser)
+		return;
+
+	SetStatus("Extracting fixtures from page...");
+	std::string js = BuildCricClubsExtractionJs();
+	cefBrowser->executeJavaScript(js);
+
+	/* If no result arrives within 5 seconds, retry up to 2 times */
+	QTimer::singleShot(5000, this, [this]() {
+		if (fixtures.empty() && allFixtures.empty() && cefBrowser) {
+			cefRetryCount++;
+			if (cefRetryCount <= 2) {
+				blog(LOG_INFO, "[CricNode] CEF extraction retry #%d", cefRetryCount);
+				SetStatus(QString("Retrying extraction (attempt %1)...").arg(cefRetryCount + 1));
+				std::string js = BuildCricClubsExtractionJs();
+				cefBrowser->executeJavaScript(js);
+			} else {
+				SetStatus("Could not extract fixtures. Try \"Open in Browser\" instead.");
+				progressBar->setVisible(false);
+				CleanupCefBrowser();
+			}
+		}
+	});
+#endif
+}
+
+std::string CricNodeFixtureBrowser::BuildCricClubsExtractionJs()
+{
+	/* This JS extracts fixtures from the CricClubs DOM and writes the
+	 * JSON result to document.title so we receive it via titleChanged.
+	 * Ported from Android app's CricClubsParser.fixturesExtractionJs(). */
+	int clubId = 0;
+	try {
+		clubId = std::stoi(cricClubsClubId);
+	} catch (...) {
+	}
+
+	QString js = QString(R"JS(
+document.title = (function() {
+    try {
+        var matches = [];
+        var clubIdFallback = %1;
+        var months = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+        function clean(el) { return el ? (el.innerText || el.textContent || '').trim() : ''; }
+
+        function parseSchTime(schTime) {
+            if (!schTime) return null;
+            var h2 = schTime.querySelector('h2');
+            var h5s = schTime.querySelectorAll('h5');
+            var dayNum = h2 ? parseInt(clean(h2)) : 0;
+            var monthYear = h5s.length > 0 ? clean(h5s[0]) : '';
+            var time = h5s.length > 1 ? clean(h5s[1]) : '';
+            return {day: dayNum, time: time, dateStr: monthYear + ' ' + dayNum};
+        }
+
+        var blocks = document.querySelectorAll('div.schedule-all');
+        for (var i = 0; i < blocks.length; i++) {
+            var block = blocks[i];
+            var schTime = block.querySelector('.sch-time');
+            var dateInfo = parseSchTime(schTime);
+
+            var teamLinks = block.querySelectorAll('.schedule-text h3 a[href*="viewTeam"]');
+            var team1 = teamLinks.length > 0 ? clean(teamLinks[0]) : '';
+            var team2 = teamLinks.length > 1 ? clean(teamLinks[1]) : '';
+
+            var venueLink = block.querySelector('a[href*="viewGround"]');
+            var venue = venueLink ? clean(venueLink) : '';
+
+            var scorecardLink = block.querySelector('a[href*="viewScorecard"]');
+            var hasScorecard = !!scorecardLink;
+
+            var matchIdEl = scorecardLink || block.querySelector('a[href*="matchId"]');
+            var matchId = 0, mClubId = clubIdFallback;
+            if (matchIdEl) {
+                var href = matchIdEl.getAttribute('href') || '';
+                var mm = href.match(/matchId=(\d+)/);
+                if (mm) matchId = parseInt(mm[1]);
+                var cm = href.match(/clubId=(\d+)/);
+                if (cm) mClubId = parseInt(cm[1]);
+            }
+            if (matchId === 0) {
+                var rowDiv = block.querySelector('[id^="deleteRow"]');
+                if (rowDiv) { var rm = rowDiv.id.match(/deleteRow(\d+)/); if (rm) matchId = parseInt(rm[1]); }
+            }
+            if (matchId === 0) {
+                var rosterLink = block.querySelector('a[href*="fixtureId"]');
+                if (rosterLink) { var fm = (rosterLink.getAttribute('href')||'').match(/fixtureId=(\d+)/); if (fm) matchId = parseInt(fm[1]); }
+            }
+
+            var status = 'SCHEDULED';
+            if (hasScorecard) {
+                var bt = clean(block).toLowerCase();
+                if (bt.indexOf('won by')!==-1||bt.indexOf('tied')!==-1||bt.indexOf('draw')!==-1||bt.indexOf('no result')!==-1)
+                    status = 'COMPLETED';
+                else status = 'LIVE';
+            }
+
+            if (matchId > 0) {
+                matches.push({matchId:matchId, clubId:mClubId, team1:team1, team2:team2,
+                    time:dateInfo?dateInfo.time:'', date:dateInfo?dateInfo.dateStr:'',
+                    venue:venue, status:status, hasScorecard:hasScorecard});
+            }
+        }
+        return 'CRICNODE_FIXTURES:' + JSON.stringify({success:true, matches:matches, blocks:blocks.length});
+    } catch(e) {
+        return 'CRICNODE_FIXTURES:' + JSON.stringify({success:false, error:e.message, matches:[]});
+    }
+})();
+)JS")
+				   .arg(clubId);
+
+	return js.toStdString();
+}
+
+void CricNodeFixtureBrowser::OnCefTitleChanged(const QString &title)
+{
+	if (!title.startsWith("CRICNODE_FIXTURES:"))
+		return;
+
+	QString json = title.mid(QString("CRICNODE_FIXTURES:").length());
+	blog(LOG_INFO, "[CricNode] CEF extraction result: %s",
+	     json.left(300).toUtf8().constData());
+
+	ParseCricClubsCefResult(json);
+	CleanupCefBrowser();
+}
+
+void CricNodeFixtureBrowser::ParseCricClubsCefResult(const QString &json)
+{
+	QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
+	QJsonObject root = doc.object();
+
+	if (!root["success"].toBool()) {
+		QString error = root["error"].toString();
+		SetStatus("JS extraction failed: " + error);
+		progressBar->setVisible(false);
+		return;
+	}
+
+	QJsonArray matchArr = root["matches"].toArray();
+	int blockCount = root["blocks"].toInt();
+
+	for (auto val : matchArr) {
+		QJsonObject m = val.toObject();
+		CricNodeFixture f;
+		f.provider = "cricclubs";
+		f.matchId = QString::number(m["matchId"].toInt()).toStdString();
+		f.clubId = QString::number(m["clubId"].toInt()).toStdString();
+		f.team1 = m["team1"].toString().toStdString();
+		f.team2 = m["team2"].toString().toStdString();
+		f.date = m["date"].toString().toStdString();
+		f.time = m["time"].toString().toStdString();
+		f.venue = m["venue"].toString().toStdString();
+		f.status = m["status"].toString().toStdString();
+		f.hasScorecard = m["hasScorecard"].toBool();
+
+		if (!f.matchId.empty() && f.matchId != "0")
+			fixtures.push_back(f);
+	}
+
+	allFixtures = fixtures;
+	PopulateTable();
+	progressBar->setVisible(false);
+
+	blog(LOG_INFO, "[CricNode] CEF extracted %d fixtures from %d blocks",
+	     (int)fixtures.size(), blockCount);
+}
+
+void CricNodeFixtureBrowser::CleanupCefBrowser()
+{
+#ifdef BROWSER_AVAILABLE
+	if (cefBrowser) {
+		cefBrowser->closeBrowser();
+		cefBrowser->deleteLater();
+		cefBrowser = nullptr;
+	}
+#endif
+}
+
+/* ===================== Network reply router ===================== */
 
 void CricNodeFixtureBrowser::OnNetworkReply(QNetworkReply *reply)
 {
@@ -348,7 +589,6 @@ void CricNodeFixtureBrowser::OnNetworkReply(QNetworkReply *reply)
 
 	if (requestUrl.host().contains("dallascricket")) {
 		ParseDclResponse(data);
-		/* Fetch more pages */
 		dclPagesLoaded++;
 		if (dclPagesLoaded < dclTotalPages) {
 			QUrl url("https://dallascricket.org:3000/api/getmatchlists");
@@ -360,8 +600,7 @@ void CricNodeFixtureBrowser::OnNetworkReply(QNetworkReply *reply)
 			url.setQuery(query);
 
 			QNetworkRequest request(url);
-			request.setRawHeader("User-Agent",
-					     "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+			request.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
 			request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
 			request.setTransferTimeout(30000);
 			networkManager->get(request);
@@ -388,6 +627,8 @@ void CricNodeFixtureBrowser::OnNetworkReply(QNetworkReply *reply)
 		PopulateTable();
 	}
 }
+
+/* ===================== Response parsers ===================== */
 
 void CricNodeFixtureBrowser::ParseDclResponse(const QByteArray &data)
 {
@@ -458,7 +699,6 @@ void CricNodeFixtureBrowser::ParsePlayHQResponse(const QByteArray &data)
 	QJsonObject root = doc.object();
 	QJsonArray rounds = root["rounds"].toArray();
 
-	/* Build team name lookup */
 	QJsonArray teamsArr = root["teams"].toArray();
 	QMap<QString, QString> teamNames;
 	for (auto t : teamsArr) {
@@ -478,12 +718,8 @@ void CricNodeFixtureBrowser::ParsePlayHQResponse(const QByteArray &data)
 
 			QJsonArray gameTeams = game["teams"].toArray();
 			if (gameTeams.size() >= 2) {
-				f.team1 = gameTeams[0].toObject()["name"]
-						  .toString()
-						  .toStdString();
-				f.team2 = gameTeams[1].toObject()["name"]
-						  .toString()
-						  .toStdString();
+				f.team1 = gameTeams[0].toObject()["name"].toString().toStdString();
+				f.team2 = gameTeams[1].toObject()["name"].toString().toStdString();
 			}
 
 			QJsonArray schedule = game["schedule"].toArray();
@@ -511,27 +747,16 @@ void CricNodeFixtureBrowser::ParsePlayHQResponse(const QByteArray &data)
 
 void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 {
-	/*
-	 * Port of CricClubsParser.fixturesExtractionJs from the Android app.
-	 * Parses div.schedule-all blocks from the CricClubs fixtures page HTML.
-	 *
-	 * Note: CricClubs may block automated requests (403). If scraping fails,
-	 * the user can click "Open in Browser" to view fixtures manually.
-	 */
+	/* HTTP fallback parser — regex-based HTML scraping.
+	 * Usually blocked by CricClubs (403). CEF path is preferred. */
 	QString html = QString::fromUtf8(data);
 
-	/* Check if we got blocked */
 	if (html.contains("403") || html.contains("Access Denied") || html.length() < 500) {
-		SetStatus("CricClubs blocked the automated request.\n"
-			  "Click \"Open in Browser\" to view fixtures on the website,\n"
-			  "then enter the Match ID manually using \"Cancel\" → manual entry.");
+		SetStatus("CricClubs blocked the request.\nClick \"Open in Browser\" to view fixtures manually.");
 		return;
 	}
 
-	/* Find each schedule-all block start position */
-	QRegularExpression schedStart("schedule-all",
-				      QRegularExpression::CaseInsensitiveOption);
-
+	QRegularExpression schedStart("schedule-all", QRegularExpression::CaseInsensitiveOption);
 	QList<int> blockStarts;
 	auto it = schedStart.globalMatch(html);
 	while (it.hasNext()) {
@@ -540,30 +765,19 @@ void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 	}
 
 	if (blockStarts.isEmpty()) {
-		SetStatus("No fixtures found on the CricClubs page.\n"
-			  "Click \"Open in Browser\" to view fixtures manually.");
+		SetStatus("No fixtures found. Click \"Open in Browser\" to view manually.");
 		return;
 	}
 
-	/* Helper regexes */
-	QRegularExpression teamRe("viewTeam[^\"]*\"[^>]*>([^<]+)<",
-				  QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression venueRe("viewGround[^\"]*\"[^>]*>([^<]+)<",
-				   QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression scorecardRe("viewScorecard[^\"]*matchId=(\\d+)",
-				       QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression matchIdRe("matchId=(\\d+)",
-				     QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression clubIdRe("clubId=(\\d+)",
-				    QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression deleteRowRe("deleteRow(\\d+)",
-				       QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression fixtureIdRe("fixtureId=(\\d+)",
-				       QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression h2Re("<h2[^>]*>(\\d+)</h2>",
-				QRegularExpression::CaseInsensitiveOption);
-	QRegularExpression h5Re("<h5[^>]*>([^<]+)</h5>",
-				QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression teamRe("viewTeam[^\"]*\"[^>]*>([^<]+)<", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression venueRe("viewGround[^\"]*\"[^>]*>([^<]+)<", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression scorecardRe("viewScorecard[^\"]*matchId=(\\d+)", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression matchIdRe("matchId=(\\d+)", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression clubIdRe("clubId=(\\d+)", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression deleteRowRe("deleteRow(\\d+)", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression fixtureIdRe("fixtureId=(\\d+)", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression h2Re("<h2[^>]*>(\\d+)</h2>", QRegularExpression::CaseInsensitiveOption);
+	QRegularExpression h5Re("<h5[^>]*>([^<]+)</h5>", QRegularExpression::CaseInsensitiveOption);
 
 	for (int i = 0; i < blockStarts.size(); i++) {
 		int start = blockStarts[i];
@@ -574,17 +788,14 @@ void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 		f.provider = "cricclubs";
 		f.clubId = cricClubsClubId;
 
-		/* Teams */
 		auto teamIt = teamRe.globalMatch(block);
 		if (teamIt.hasNext())
 			f.team1 = teamIt.next().captured(1).trimmed().toStdString();
 		if (teamIt.hasNext())
 			f.team2 = teamIt.next().captured(1).trimmed().toStdString();
-
 		if (f.team1.empty() && f.team2.empty())
 			continue;
 
-		/* Date: h2 = day number, h5[0] = "Mon Year", h5[1] = time */
 		auto h2Match = h2Re.match(block);
 		QList<QString> h5Values;
 		auto h5It = h5Re.globalMatch(block);
@@ -597,16 +808,13 @@ void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 		f.date = (monthYear + " " + dayStr).trimmed().toStdString();
 		f.time = timeStr.toStdString();
 
-		/* Venue */
 		auto venueMatch = venueRe.match(block);
 		if (venueMatch.hasMatch())
 			f.venue = venueMatch.captured(1).trimmed().toStdString();
 
-		/* Scorecard link → match is scored */
 		auto scMatch = scorecardRe.match(block);
 		f.hasScorecard = scMatch.hasMatch();
 
-		/* Match ID from scorecard, matchId link, deleteRow, or fixtureId */
 		if (scMatch.hasMatch()) {
 			f.matchId = scMatch.captured(1).toStdString();
 		} else {
@@ -625,12 +833,10 @@ void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 				f.matchId = fiMatch.captured(1).toStdString();
 		}
 
-		/* Club ID override */
 		auto cidMatch = clubIdRe.match(block);
 		if (cidMatch.hasMatch())
 			f.clubId = cidMatch.captured(1).toStdString();
 
-		/* Status */
 		QString blockLower = block.toLower();
 		if (f.hasScorecard) {
 			if (blockLower.contains("won by") || blockLower.contains("tied") ||
@@ -647,11 +853,11 @@ void CricNodeFixtureBrowser::ParseCricClubsResponse(const QByteArray &data)
 			fixtures.push_back(f);
 	}
 
-	if (fixtures.empty()) {
-		SetStatus("Could not parse fixtures from CricClubs.\n"
-			  "Click \"Open in Browser\" to find match IDs manually.");
-	}
+	if (fixtures.empty())
+		SetStatus("Could not parse fixtures. Click \"Open in Browser\" to find match IDs manually.");
 }
+
+/* ===================== Table / UI ===================== */
 
 void CricNodeFixtureBrowser::PopulateTable()
 {

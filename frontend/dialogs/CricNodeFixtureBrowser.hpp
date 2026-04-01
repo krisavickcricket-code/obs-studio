@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ui-config.h>
+
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -22,6 +24,8 @@
 #include <vector>
 #include <functional>
 
+class QCefWidget;
+
 struct CricNodeFixture {
 	std::string matchId;
 	std::string clubId;
@@ -42,7 +46,6 @@ public:
 	explicit CricNodeFixtureBrowser(QWidget *parent = nullptr);
 	~CricNodeFixtureBrowser();
 
-	/* Returns selected fixture or empty if cancelled */
 	CricNodeFixture GetSelectedFixture() const { return selectedFixture; }
 
 private slots:
@@ -51,6 +54,7 @@ private slots:
 	void OnSelectClicked();
 	void OnNetworkReply(QNetworkReply *reply);
 	void OnBrowseWebClicked();
+	void OnCefTitleChanged(const QString &title);
 
 private:
 	void FetchDclFixtures();
@@ -62,6 +66,15 @@ private:
 	void ParsePlayCricketResponse(const QByteArray &data);
 	void ParsePlayHQResponse(const QByteArray &data);
 	void ParseCricClubsResponse(const QByteArray &data);
+
+	/* CEF browser for CricClubs (bypasses HTTP 403) */
+	void FetchCricClubsViaCef();
+	void InjectCricClubsExtractionJs();
+	void ParseCricClubsCefResult(const QString &json);
+	void CleanupCefBrowser();
+	std::string BuildCricClubsExtractionJs();
+	QCefWidget *cefBrowser = nullptr;
+	int cefRetryCount = 0;
 
 	std::string cricClubsClubId;
 
