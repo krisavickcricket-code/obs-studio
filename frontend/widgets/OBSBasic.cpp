@@ -1239,6 +1239,14 @@ void OBSBasic::OBSInit()
 			on_resetDocks_triggered(true);
 	}
 
+	/* Ensure CricNode overlay dock is always visible (may be hidden
+	 * by restored dock state from a previous OBS installation) */
+	if (cricnodeOverlayDock && !cricnodeOverlayDock->isVisible()) {
+		cricnodeOverlayDock->setVisible(true);
+		cricnodeOverlayDock->setFloating(false);
+		addDockWidget(Qt::RightDockWidgetArea, cricnodeOverlayDock);
+	}
+
 	bool pre23Defaults = config_get_bool(App()->GetUserConfig(), "General", "Pre23Defaults");
 	if (pre23Defaults) {
 		bool resetDockLock23 = config_get_bool(App()->GetUserConfig(), "General", "ResetDockLock23");

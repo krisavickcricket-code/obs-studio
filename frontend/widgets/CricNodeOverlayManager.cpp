@@ -99,18 +99,16 @@ CricNodeOverlayManager::CricNodeOverlayManager(QWidget *parent)
 	/* Buttons */
 	QHBoxLayout *btnLayout = new QHBoxLayout();
 
-	addButton = new QPushButton("+", this);
-	addButton->setToolTip("Add Overlay");
-	addButton->setMaximumWidth(32);
+	addButton = new QPushButton("Add Overlay", this);
+	addButton->setToolTip("Add a new overlay (image, URL, or scorecard)");
 	connect(addButton, &QPushButton::clicked, this, &CricNodeOverlayManager::AddOverlayClicked);
 
 	editButton = new QPushButton("Edit", this);
 	editButton->setToolTip("Edit selected overlay");
 	connect(editButton, &QPushButton::clicked, this, &CricNodeOverlayManager::EditOverlay);
 
-	removeButton = new QPushButton("-", this);
+	removeButton = new QPushButton("Remove", this);
 	removeButton->setToolTip("Remove selected overlay");
-	removeButton->setMaximumWidth(32);
 	connect(removeButton, &QPushButton::clicked, this, &CricNodeOverlayManager::RemoveOverlay);
 
 	btnLayout->addWidget(addButton);
