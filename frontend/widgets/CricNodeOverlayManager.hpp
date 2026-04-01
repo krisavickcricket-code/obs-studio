@@ -77,6 +77,7 @@ private slots:
 	void ToggleOverlay(int row);
 	void UpdateRotatingImages();
 	void OnFixtureWentLive(QString overlayId, QString newMatchId, QString provider);
+	void OpenSettings();
 
 private:
 	void RefreshList();
@@ -90,6 +91,7 @@ private:
 	QListWidget *overlayList;
 	QPushButton *addButton;
 	QPushButton *editButton;
+	QPushButton *settingsButton;
 	QPushButton *removeButton;
 
 	std::vector<CricNodeOverlay> overlays;

@@ -78,6 +78,14 @@
     <file>images/network-bad.svg</file>
     <file>images/network-disconnected.svg</file>
     <file>images/network-inactive.svg</file>
+    <file>images/cricnode_banner.png</file>
+    <file>images/cricnode_text.png</file>
+    <file>images/cricnode_appicon.png</file>
+    <file>images/cricnode_globe.png</file>
+    <file>images/cricnode_icon.png</file>
+    <file>images/cricnode_logo.png</file>
+    <file>images/cricclubs_logo.png</file>
+    <file>images/cricheroes_logo.jpg</file>
   </qresource>
   <qresource prefix="/settings">
     <file>images/settings/output.svg</file>

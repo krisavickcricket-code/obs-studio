@@ -6,11 +6,14 @@
 extern QCef *cef;
 #endif
 
+#include <utility/CricNodeStyle.hpp>
 #include <widgets/OBSBasic.hpp>
 #include <util/base.h>
 
+#include <QColor>
 #include <QDate>
 #include <QDesktopServices>
+#include <QFont>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QRegularExpression>
@@ -19,10 +22,26 @@ extern QCef *cef;
 
 CricNodeFixtureBrowser::CricNodeFixtureBrowser(QWidget *parent) : QDialog(parent)
 {
-	setWindowTitle("Browse Fixtures");
-	setMinimumSize(750, 550);
+	setWindowTitle("CricNode - Browse Fixtures");
+	setMinimumSize(800, 600);
+	setStyleSheet(CricNodeStyle::DialogSheet());
 
 	auto *layout = new QVBoxLayout(this);
+	layout->setSpacing(10);
+	layout->setContentsMargins(16, 16, 16, 16);
+
+	/* Branded header with banner */
+	auto *headerRow = new QHBoxLayout();
+	auto *bannerIcon = new QLabel(this);
+	QPixmap bannerPix(":/res/images/cricnode_banner.png");
+	bannerIcon->setPixmap(bannerPix.scaledToHeight(40, Qt::SmoothTransformation));
+	headerRow->addWidget(bannerIcon);
+	headerRow->addStretch();
+	auto *headerSubtitle = new QLabel("Browse Fixtures", this);
+	headerSubtitle->setStyleSheet(
+		QString("font-size: 14px; color: %1;").arg(CricNodeStyle::TextSecondary));
+	headerRow->addWidget(headerSubtitle);
+	layout->addLayout(headerRow);
 
 	/* Provider selection */
 	auto *providerRow = new QHBoxLayout();
@@ -108,12 +127,16 @@ CricNodeFixtureBrowser::CricNodeFixtureBrowser(QWidget *parent) : QDialog(parent
 
 	/* Buttons row: Fetch + Browse on Web */
 	auto *fetchRow = new QHBoxLayout();
-	fetchButton = new QPushButton("Fetch Fixtures");
+	fetchButton = new QPushButton("  Fetch Fixtures  ");
 	connect(fetchButton, &QPushButton::clicked, this, &CricNodeFixtureBrowser::OnFetchClicked);
 	fetchRow->addWidget(fetchButton);
 
-	browseWebButton = new QPushButton("Open in Browser");
+	browseWebButton = new QPushButton("  Open in Browser  ");
 	browseWebButton->setToolTip("Open the fixtures page in your web browser to find match IDs");
+	browseWebButton->setStyleSheet(
+		QString("QPushButton { background-color: %1; } QPushButton:hover { background-color: %2; }")
+			.arg(CricNodeStyle::SurfaceLight)
+			.arg(CricNodeStyle::SurfaceBorder));
 	connect(browseWebButton, &QPushButton::clicked, this, &CricNodeFixtureBrowser::OnBrowseWebClicked);
 	fetchRow->addWidget(browseWebButton);
 	browseWebButton->hide();
@@ -136,17 +159,26 @@ CricNodeFixtureBrowser::CricNodeFixtureBrowser(QWidget *parent) : QDialog(parent
 	fixtureTable->setColumnCount(6);
 	fixtureTable->setHorizontalHeaderLabels({"Team 1", "Team 2", "Date", "Time", "Venue", "Status"});
 	fixtureTable->horizontalHeader()->setStretchLastSection(true);
+	fixtureTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	fixtureTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+	fixtureTable->verticalHeader()->setVisible(false);
+	fixtureTable->setAlternatingRowColors(true);
 	fixtureTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	fixtureTable->setSelectionMode(QAbstractItemView::SingleSelection);
 	fixtureTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	fixtureTable->setShowGrid(false);
 	layout->addWidget(fixtureTable);
 
 	/* Bottom buttons */
 	auto *btnRow = new QHBoxLayout();
-	selectButton = new QPushButton("Select Match");
+	selectButton = new QPushButton("  Select Match  ");
 	selectButton->setEnabled(false);
 	connect(selectButton, &QPushButton::clicked, this, &CricNodeFixtureBrowser::OnSelectClicked);
-	cancelButton = new QPushButton("Cancel");
+	cancelButton = new QPushButton("  Cancel  ");
+	cancelButton->setStyleSheet(
+		QString("QPushButton { background-color: %1; } QPushButton:hover { background-color: %2; }")
+			.arg(CricNodeStyle::SurfaceLight)
+			.arg(CricNodeStyle::SurfaceBorder));
 	connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 	btnRow->addStretch();
 	btnRow->addWidget(selectButton);
@@ -330,17 +362,18 @@ void CricNodeFixtureBrowser::FetchCricClubsFixtures()
 
 	cricClubsClubId = clubId.toStdString();
 	cefRetryCount = 0;
+	cefChunkMatches = QJsonArray();
 
 	SetStatus("Fetching CricClubs fixtures...");
 	progressBar->setVisible(true);
 	progressBar->setRange(0, 0);
 
 #ifdef BROWSER_AVAILABLE
-	if (cef && cef->initialized()) {
+	if (cef) {
 		FetchCricClubsViaCef();
 		return;
 	}
-	blog(LOG_WARNING, "[CricNode] CEF not available, CricClubs fixture fetch won't work");
+	blog(LOG_WARNING, "[CricNode] CEF not available (cef pointer is null), CricClubs fixture fetch won't work");
 #endif
 	SetStatus("Browser engine not available. Click \"Open in Browser\" to view fixtures manually.");
 	progressBar->setVisible(false);
@@ -370,9 +403,11 @@ void CricNodeFixtureBrowser::FetchCricClubsViaCef()
 		return;
 	}
 
-	/* Hide the browser — we only need it for JS execution */
+	/* The browser must be shown for CEF to initialize (showEvent triggers
+	 * browser creation).  Move it offscreen so it's invisible to the user. */
 	cefBrowser->setFixedSize(1, 1);
-	cefBrowser->hide();
+	cefBrowser->move(-100, -100);
+	cefBrowser->show();
 
 	SetStatus("Loading CricClubs page in browser...");
 
@@ -380,9 +415,13 @@ void CricNodeFixtureBrowser::FetchCricClubsViaCef()
 	connect(cefBrowser, &QCefWidget::titleChanged, this,
 		&CricNodeFixtureBrowser::OnCefTitleChanged);
 
+	/* Log URL changes for debugging */
+	connect(cefBrowser, &QCefWidget::urlChanged, this, [](const QString &url) {
+		blog(LOG_INFO, "[CricNode] CEF URL changed: %s", url.left(200).toUtf8().constData());
+	});
+
 	/* After the page has had time to load and render, inject extraction JS.
-	 * CricClubs pages are JS-heavy; 3 seconds is a safe delay
-	 * (same approach as the Android app which uses a 1s postDelayed). */
+	 * CricClubs pages are JS-heavy; 3.5 seconds is a safe delay. */
 	QTimer::singleShot(3500, this, &CricNodeFixtureBrowser::InjectCricClubsExtractionJs);
 
 	blog(LOG_INFO, "[CricNode] Loading CricClubs fixtures via CEF: %s", url.c_str());
@@ -395,20 +434,20 @@ void CricNodeFixtureBrowser::InjectCricClubsExtractionJs()
 	if (!cefBrowser)
 		return;
 
-	SetStatus("Extracting fixtures from page...");
+	cefRetryCount++;
+	blog(LOG_INFO, "[CricNode] CEF extraction attempt #%d", cefRetryCount);
+	SetStatus(QString("Extracting fixtures (attempt %1/3)...").arg(cefRetryCount));
+
 	std::string js = BuildCricClubsExtractionJs();
 	cefBrowser->executeJavaScript(js);
 
-	/* If no result arrives within 5 seconds, retry up to 2 times */
+	/* If no result arrives within 5 seconds, retry or give up */
 	QTimer::singleShot(5000, this, [this]() {
 		if (fixtures.empty() && allFixtures.empty() && cefBrowser) {
-			cefRetryCount++;
-			if (cefRetryCount <= 2) {
-				blog(LOG_INFO, "[CricNode] CEF extraction retry #%d", cefRetryCount);
-				SetStatus(QString("Retrying extraction (attempt %1)...").arg(cefRetryCount + 1));
-				std::string js = BuildCricClubsExtractionJs();
-				cefBrowser->executeJavaScript(js);
+			if (cefRetryCount < 3) {
+				InjectCricClubsExtractionJs();
 			} else {
+				blog(LOG_WARNING, "[CricNode] CEF extraction failed after %d attempts", cefRetryCount);
 				SetStatus("Could not extract fixtures. Try \"Open in Browser\" instead.");
 				progressBar->setVisible(false);
 				CleanupCefBrowser();
@@ -429,12 +468,14 @@ std::string CricNodeFixtureBrowser::BuildCricClubsExtractionJs()
 	} catch (...) {
 	}
 
+	/* Send matches in chunks via document.title to avoid truncation.
+	 * Each chunk: CRICNODE_CHUNK:<chunkIndex>/<totalChunks>:<json_array>
+	 * Final signal: CRICNODE_DONE:<totalMatches>:<blockCount> */
 	QString js = QString(R"JS(
-document.title = (function() {
+(function() {
     try {
         var matches = [];
         var clubIdFallback = %1;
-        var months = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
         function clean(el) { return el ? (el.innerText || el.textContent || '').trim() : ''; }
 
         function parseSchTime(schTime) {
@@ -495,9 +536,24 @@ document.title = (function() {
                     venue:venue, status:status, hasScorecard:hasScorecard});
             }
         }
-        return 'CRICNODE_FIXTURES:' + JSON.stringify({success:true, matches:matches, blocks:blocks.length});
+
+        /* Send in chunks of 5 matches to stay under title length limits */
+        var chunkSize = 5;
+        var totalChunks = Math.ceil(matches.length / chunkSize) || 1;
+        var idx = 0;
+        function sendChunk() {
+            if (idx < totalChunks) {
+                var chunk = matches.slice(idx * chunkSize, (idx + 1) * chunkSize);
+                document.title = 'CRICNODE_CHUNK:' + idx + '/' + totalChunks + ':' + JSON.stringify(chunk);
+                idx++;
+                setTimeout(sendChunk, 100);
+            } else {
+                document.title = 'CRICNODE_DONE:' + matches.length + ':' + blocks.length;
+            }
+        }
+        sendChunk();
     } catch(e) {
-        return 'CRICNODE_FIXTURES:' + JSON.stringify({success:false, error:e.message, matches:[]});
+        document.title = 'CRICNODE_FIXTURES:' + JSON.stringify({success:false, error:e.message, matches:[]});
     }
 })();
 )JS")
@@ -508,15 +564,52 @@ document.title = (function() {
 
 void CricNodeFixtureBrowser::OnCefTitleChanged(const QString &title)
 {
-	if (!title.startsWith("CRICNODE_FIXTURES:"))
+	blog(LOG_INFO, "[CricNode] CEF title changed: %s", title.left(200).toUtf8().constData());
+
+	/* Chunked protocol: CRICNODE_CHUNK:<idx>/<total>:<json_array> */
+	if (title.startsWith("CRICNODE_CHUNK:")) {
+		/* Parse "idx/total:json" */
+		QString payload = title.mid(15); /* skip "CRICNODE_CHUNK:" */
+		int colonPos = payload.indexOf(':', payload.indexOf('/'));
+		if (colonPos < 0)
+			return;
+		QString jsonPart = payload.mid(colonPos + 1);
+		QJsonArray arr = QJsonDocument::fromJson(jsonPart.toUtf8()).array();
+		for (auto v : arr)
+			cefChunkMatches.append(v);
+		blog(LOG_INFO, "[CricNode] CEF chunk received, accumulated %d matches", (int)cefChunkMatches.size());
 		return;
+	}
 
-	QString json = title.mid(QString("CRICNODE_FIXTURES:").length());
-	blog(LOG_INFO, "[CricNode] CEF extraction result: %s",
-	     json.left(300).toUtf8().constData());
+	/* Final signal: CRICNODE_DONE:<totalMatches>:<blockCount> */
+	if (title.startsWith("CRICNODE_DONE:")) {
+		QString payload = title.mid(14);
+		QStringList parts = payload.split(':');
+		int blockCount = parts.size() > 1 ? parts[1].toInt() : 0;
 
-	ParseCricClubsCefResult(json);
-	CleanupCefBrowser();
+		blog(LOG_INFO, "[CricNode] CEF extraction complete: %d matches, %d blocks",
+		     (int)cefChunkMatches.size(), blockCount);
+
+		/* Build fixture list from accumulated chunks */
+		QJsonObject root;
+		root["success"] = true;
+		root["matches"] = cefChunkMatches;
+		root["blocks"] = blockCount;
+		ParseCricClubsCefResult(QJsonDocument(root).toJson(QJsonDocument::Compact));
+		cefChunkMatches = QJsonArray();
+		CleanupCefBrowser();
+		return;
+	}
+
+	/* Legacy single-shot protocol (error path) */
+	if (title.startsWith("CRICNODE_FIXTURES:")) {
+		QString json = title.mid(18);
+		blog(LOG_INFO, "[CricNode] CEF extraction result: %s",
+		     json.left(300).toUtf8().constData());
+		ParseCricClubsCefResult(json);
+		CleanupCefBrowser();
+		return;
+	}
 }
 
 void CricNodeFixtureBrowser::ParseCricClubsCefResult(const QString &json)
@@ -871,14 +964,16 @@ void CricNodeFixtureBrowser::PopulateTable()
 		fixtureTable->setItem(i, 4, new QTableWidgetItem(QString::fromStdString(f.venue)));
 
 		auto *statusItem = new QTableWidgetItem(QString::fromStdString(f.status));
+		statusItem->setForeground(QColor(CricNodeStyle::StatusColor(f.status)));
 		if (f.status == "LIVE")
-			statusItem->setForeground(Qt::green);
-		else if (f.status == "COMPLETED")
-			statusItem->setForeground(Qt::gray);
+			statusItem->setFont(QFont(statusItem->font().family(), -1, QFont::Bold));
 		fixtureTable->setItem(i, 5, statusItem);
 	}
 
 	fixtureTable->resizeColumnsToContents();
+	/* Keep team columns stretched */
+	fixtureTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	fixtureTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
 	SetStatus(QString("Found %1 fixtures").arg(fixtures.size()));
 }
 

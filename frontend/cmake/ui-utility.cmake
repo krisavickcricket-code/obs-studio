@@ -10,6 +10,7 @@ target_sources(
     utility/CricNodeMetadata.hpp
     utility/CricNodeFixtureMonitor.cpp
     utility/CricNodeFixtureMonitor.hpp
+    utility/CricNodeStyle.hpp
     utility/CrashHandler.cpp
     utility/CrashHandler.hpp
     utility/FFmpegCodec.cpp

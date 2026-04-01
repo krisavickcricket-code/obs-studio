@@ -45,4 +45,6 @@ target_sources(
     dialogs/OBSWhatsNew.hpp
     dialogs/CricNodeFixtureBrowser.cpp
     dialogs/CricNodeFixtureBrowser.hpp
+    dialogs/CricNodeOverlaySettings.cpp
+    dialogs/CricNodeOverlaySettings.hpp
 )

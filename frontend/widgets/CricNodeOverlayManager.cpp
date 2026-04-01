@@ -2,7 +2,9 @@
 #include "OBSBasic.hpp"
 
 #include <dialogs/CricNodeFixtureBrowser.hpp>
+#include <dialogs/CricNodeOverlaySettings.hpp>
 #include <utility/CricNodeFixtureMonitor.hpp>
+#include <utility/CricNodeStyle.hpp>
 
 #include <qt-wrappers.hpp>
 
@@ -10,6 +12,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QJsonDocument>
+#include <QPixmap>
 #include <QUuid>
 #include <QStandardPaths>
 #include <QDir>
@@ -81,13 +84,24 @@ CricNodeOverlay CricNodeOverlay::fromJson(const QJsonObject &obj)
 CricNodeOverlayManager::CricNodeOverlayManager(QWidget *parent)
 	: QWidget(parent)
 {
-	mainLayout = new QVBoxLayout(this);
-	mainLayout->setContentsMargins(4, 4, 4, 4);
+	setObjectName("cricnodeWidget");
+	setStyleSheet(CricNodeStyle::WidgetSheet());
 
-	/* Header */
-	QLabel *header = new QLabel("Overlays", this);
-	header->setStyleSheet("font-weight: bold; font-size: 13px;");
-	mainLayout->addWidget(header);
+	mainLayout = new QVBoxLayout(this);
+	mainLayout->setContentsMargins(8, 8, 8, 8);
+	mainLayout->setSpacing(6);
+
+	/* Header with logo */
+	QHBoxLayout *headerRow = new QHBoxLayout();
+	QLabel *headerIcon = new QLabel(this);
+	QPixmap globePix(":/res/images/cricnode_globe.png");
+	headerIcon->setPixmap(globePix.scaledToHeight(24, Qt::SmoothTransformation));
+	headerRow->addWidget(headerIcon);
+	QLabel *header = new QLabel("CricNode Overlays", this);
+	header->setStyleSheet(CricNodeStyle::HeaderSheet());
+	headerRow->addWidget(header);
+	headerRow->addStretch();
+	mainLayout->addLayout(headerRow);
 
 	/* List */
 	overlayList = new QListWidget(this);
@@ -111,8 +125,13 @@ CricNodeOverlayManager::CricNodeOverlayManager(QWidget *parent)
 	removeButton->setToolTip("Remove selected overlay");
 	connect(removeButton, &QPushButton::clicked, this, &CricNodeOverlayManager::RemoveOverlay);
 
+	settingsButton = new QPushButton("Settings", this);
+	settingsButton->setToolTip("Configure overlay feature toggles");
+	connect(settingsButton, &QPushButton::clicked, this, &CricNodeOverlayManager::OpenSettings);
+
 	btnLayout->addWidget(addButton);
 	btnLayout->addWidget(editButton);
+	btnLayout->addWidget(settingsButton);
 	btnLayout->addStretch();
 	btnLayout->addWidget(removeButton);
 	mainLayout->addLayout(btnLayout);
@@ -128,6 +147,7 @@ CricNodeOverlayManager::CricNodeOverlayManager(QWidget *parent)
 		&CricNodeFixtureMonitor::FixtureWentLive, this,
 		&CricNodeOverlayManager::OnFixtureWentLive);
 
+	CricNodeOverlaySettings::LoadDefaults();
 	LoadConfig();
 }
 
@@ -540,26 +560,34 @@ void CricNodeOverlayManager::RemoveSourceForOverlay(const std::string &overlayId
 
 std::string CricNodeOverlayManager::GetScorecardUrl(const CricNodeOverlay &overlay)
 {
-	/* Build file:// URL pointing to bundled scorecard HTML */
+	/* Build file:// URL pointing to bundled scorecard HTML.
+	 * OBS data lives at ../../data relative to bin/64bit. */
 	QString appDir = QCoreApplication::applicationDirPath();
-	std::string basePath = (appDir + "/data/obs-studio/cricnode/scorecards").toStdString();
+	std::string basePath = (appDir + "/../../data/obs-studio/cricnode/scorecards").toStdString();
 
 	std::string htmlFile;
 	std::string params;
+
+	/* Build feature toggle params from settings */
+	std::string featureParams =
+		"&intro=" + std::to_string((int)CricNodeOverlaySettings::GetIntro()) +
+		"&player=" + std::to_string((int)CricNodeOverlaySettings::GetPlayer()) +
+		"&wicket=" + std::to_string((int)CricNodeOverlaySettings::GetWicket()) +
+		"&innings=" + std::to_string((int)CricNodeOverlaySettings::GetInnings()) +
+		"&sidepanel=" + std::to_string((int)CricNodeOverlaySettings::GetSidepanel()) +
+		"&result=" + std::to_string((int)CricNodeOverlaySettings::GetResult());
 
 	if (overlay.scorecardProvider == "cricclubs") {
 		htmlFile = basePath + "/cricclubs_scorecard.html";
 		params = "?matchId=" + overlay.matchId + "&clubId=" + overlay.clubId +
 			 "&team1=" + overlay.team1 + "&team2=" + overlay.team2 +
-			 "&intro=1&player=1&wicket=1&innings=1&sidepanel=1&result=1";
+			 featureParams;
 	} else if (overlay.scorecardProvider == "playcricket") {
 		htmlFile = basePath + "/playcricket_scorecard.html";
-		params = "?matchId=" + overlay.matchId +
-			 "&intro=1&player=1&wicket=1&innings=1&sidepanel=1&result=1";
+		params = "?matchId=" + overlay.matchId + featureParams;
 	} else if (overlay.scorecardProvider == "playhq") {
 		htmlFile = basePath + "/playhq_scorecard.html";
-		params = "?gameId=" + overlay.matchId +
-			 "&intro=1&player=1&wicket=1&innings=1&sidepanel=1&result=1";
+		params = "?gameId=" + overlay.matchId + featureParams;
 	} else if (overlay.scorecardProvider == "dcl") {
 		htmlFile = basePath + "/dcl_scorecard.html";
 		params = "?matchId=" + overlay.matchId;
@@ -635,6 +663,18 @@ void CricNodeOverlayManager::OnFixtureWentLive(QString overlayId,
 			RefreshList();
 			emit OverlaysChanged();
 			break;
+		}
+	}
+}
+
+void CricNodeOverlayManager::OpenSettings()
+{
+	CricNodeOverlaySettings dialog(this);
+	if (dialog.exec() == QDialog::Accepted) {
+		/* Rebuild any active scorecard sources so URL params update */
+		for (auto &o : overlays) {
+			if (o.type == "scorecard" && o.enabled)
+				CreateOrUpdateSource(o);
 		}
 	}
 }

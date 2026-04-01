@@ -1403,8 +1403,8 @@ void OBSBasic::OnFirstLoad()
 		on_actionViewCurrentLog_triggered();
 
 #ifdef _WIN32
-	/* CricNode: Auto-detect camera on first launch */
-	CricNodeAutoDetectCamera();
+	/* CricNode: Auto-detect camera disabled — let user add manually */
+	// CricNodeAutoDetectCamera();
 #endif
 }
 
@@ -2210,9 +2210,7 @@ void OBSBasic::UpdateTitleBar()
 	const char *profile = config_get_string(App()->GetUserConfig(), "Basic", "Profile");
 	const char *sceneCollection = config_get_string(App()->GetUserConfig(), "Basic", "SceneCollection");
 
-	name << "OBS ";
-	if (previewProgramMode)
-		name << "Studio ";
+	name << "CricNode PC ";
 
 	name << App()->GetVersionString(false);
 	if (safe_mode)

@@ -18,9 +18,11 @@
 ******************************************************************************/
 
 #include "OBSBasic.hpp"
+#include "CricNodeOverlayManager.hpp"
 
 #include <components/UIValidation.hpp>
 #include <dialogs/OBSRemux.hpp>
+#include <docks/OBSDock.hpp>
 #include <utility/CricNodeMetadata.hpp>
 
 #include <qt-wrappers.hpp>
@@ -133,6 +135,24 @@ void OBSBasic::StartRecording()
 		std::chrono::duration_cast<std::chrono::milliseconds>(
 			std::chrono::system_clock::now().time_since_epoch())
 			.count();
+
+	/* Populate provider/matchId from the active scorecard overlay */
+	if (cricnodeOverlayDock) {
+		auto *mgr = qobject_cast<CricNodeOverlayManager *>(
+			cricnodeOverlayDock->widget());
+		if (mgr) {
+			for (auto &o : mgr->GetOverlays()) {
+				if (o.type == "scorecard" && o.enabled) {
+					cricnodeEventCollector->scorecardProvider =
+						o.scorecardProvider;
+					cricnodeEventCollector->matchId = o.matchId;
+					cricnodeEventCollector->clubId = o.clubId;
+					break;
+				}
+			}
+		}
+	}
+
 	cricnodeEventCollector->startCollecting();
 
 	SaveProject();

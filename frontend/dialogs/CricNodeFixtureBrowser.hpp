@@ -75,6 +75,7 @@ private:
 	std::string BuildCricClubsExtractionJs();
 	QCefWidget *cefBrowser = nullptr;
 	int cefRetryCount = 0;
+	QJsonArray cefChunkMatches; /* accumulated from CRICNODE_CHUNK messages */
 
 	std::string cricClubsClubId;
 
