@@ -361,8 +361,8 @@ void OBSApp::InitUserConfigDefaults()
 	config_set_default_bool(userConfig, "BasicWindow", "CenterSnapping", false);
 	config_set_default_double(userConfig, "BasicWindow", "SnapDistance", 10.0);
 	config_set_default_bool(userConfig, "BasicWindow", "SpacingHelpersEnabled", true);
-	config_set_default_bool(userConfig, "BasicWindow", "RecordWhenStreaming", false);
-	config_set_default_bool(userConfig, "BasicWindow", "KeepRecordingWhenStreamStops", false);
+	config_set_default_bool(userConfig, "BasicWindow", "RecordWhenStreaming", true);
+	config_set_default_bool(userConfig, "BasicWindow", "KeepRecordingWhenStreamStops", true);
 	config_set_default_bool(userConfig, "BasicWindow", "SysTrayEnabled", true);
 	config_set_default_bool(userConfig, "BasicWindow", "SysTrayWhenStarted", false);
 	config_set_default_bool(userConfig, "BasicWindow", "SaveProjectors", false);

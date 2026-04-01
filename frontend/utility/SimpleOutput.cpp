@@ -144,6 +144,35 @@ void SimpleOutput::LoadRecordingPreset()
 		ffmpegOutput = true;
 		return;
 
+	} else if (strncmp(quality, "CricNode", 8) == 0) {
+		/* CricNode presets: auto-select best available GPU encoder */
+		const char *bestEncoder = nullptr;
+		if (EncoderAvailable("h264_texture_amf"))
+			bestEncoder = "h264_texture_amf";
+		else if (EncoderAvailable("obs_qsv11_v2"))
+			bestEncoder = "obs_qsv11_v2";
+		else if (EncoderAvailable("obs_nvenc_h264_tex"))
+			bestEncoder = "obs_nvenc_h264_tex";
+		else if (EncoderAvailable("ffmpeg_nvenc"))
+			bestEncoder = "ffmpeg_nvenc";
+		else
+			bestEncoder = "obs_x264";
+
+		LoadRecordingPreset_Lossy(bestEncoder);
+		usingRecordingPreset = true;
+
+		bool success = CreateSimpleAACEncoder(audioRecording, 192, "simple_aac_recording", 0);
+		if (!success)
+			throw "Failed to create audio recording encoder (simple output)";
+		for (int i = 0; i < MAX_AUDIO_MIXES; i++) {
+			char name[23];
+			snprintf(name, sizeof name, "simple_aac_recording%d", i);
+			success = CreateSimpleAACEncoder(audioTrack[i], 192, name, 0);
+			if (!success)
+				throw "Failed to create audio recording encoder (simple output)";
+		}
+		return;
+
 	} else {
 		lowCPUx264 = false;
 
@@ -517,7 +546,18 @@ void SimpleOutput::UpdateRecordingSettings_amd_cqp(int cqp)
 void SimpleOutput::UpdateRecordingSettings()
 {
 	bool ultra_hq = (videoQuality == "HQ");
-	int crf = CalcCRF(ultra_hq ? 16 : 23);
+	int crf;
+
+	/* CricNode presets */
+	if (videoQuality == "CricNodeMaxQuality") {
+		crf = CalcCRF(14); /* Very low CQP for maximum quality */
+	} else if (videoQuality == "CricNode4KTo1080P") {
+		crf = CalcCRF(16); /* High quality, output is 1080p downscale */
+	} else if (videoQuality == "CricNodeSmallFile") {
+		crf = CalcCRF(26); /* Higher CRF for smaller files */
+	} else {
+		crf = CalcCRF(ultra_hq ? 16 : 23);
+	}
 
 	if (astrcmp_n(videoEncoder.c_str(), "x264", 4) == 0) {
 		UpdateRecordingSettings_x264_crf(crf);

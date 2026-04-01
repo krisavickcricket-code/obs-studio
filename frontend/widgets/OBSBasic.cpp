@@ -18,6 +18,7 @@
 ******************************************************************************/
 
 #include "OBSBasic.hpp"
+#include "CricNodeOverlayManager.hpp"
 #include "ui-config.h"
 
 #include "ColorSelect.hpp"
@@ -352,6 +353,14 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	int sideDockWidth = std::min(width() * 30 / 100, 320);
 	resizeDocks({ui->scenesDock, ui->sourcesDock}, {sideDockWidth, sideDockWidth}, Qt::Horizontal);
 	addDockWidget(Qt::BottomDockWidgetArea, controlsDock);
+
+	/* CricNode Overlay Manager dock */
+	CricNodeOverlayManager *overlayMgr = new CricNodeOverlayManager(this);
+	cricnodeOverlayDock = new OBSDock(this);
+	cricnodeOverlayDock->setObjectName(QString::fromUtf8("cricnodeOverlayDock"));
+	cricnodeOverlayDock->setWindowTitle("CricNode Overlays");
+	cricnodeOverlayDock->setWidget(overlayMgr);
+	addDockWidget(Qt::RightDockWidgetArea, cricnodeOverlayDock);
 
 	startingDockLayout = saveState();
 
@@ -736,11 +745,11 @@ bool OBSBasic::InitBasicConfigDefaults()
 	config_set_default_string(activeConfiguration, "SimpleOutput", "FilePath", GetDefaultVideoSavePath().c_str());
 	config_set_default_string(activeConfiguration, "SimpleOutput", "RecFormat2", DEFAULT_CONTAINER);
 	config_set_default_uint(activeConfiguration, "SimpleOutput", "VBitrate", 6000);
-	config_set_default_uint(activeConfiguration, "SimpleOutput", "ABitrate", 160);
+	config_set_default_uint(activeConfiguration, "SimpleOutput", "ABitrate", 128);
 	config_set_default_bool(activeConfiguration, "SimpleOutput", "UseAdvanced", false);
 	config_set_default_string(activeConfiguration, "SimpleOutput", "Preset", "veryfast");
 	config_set_default_string(activeConfiguration, "SimpleOutput", "NVENCPreset2", "p5");
-	config_set_default_string(activeConfiguration, "SimpleOutput", "RecQuality", "Stream");
+	config_set_default_string(activeConfiguration, "SimpleOutput", "RecQuality", "CricNodeMaxQuality");
 	config_set_default_bool(activeConfiguration, "SimpleOutput", "RecRB", false);
 	config_set_default_int(activeConfiguration, "SimpleOutput", "RecRBTime", 20);
 	config_set_default_int(activeConfiguration, "SimpleOutput", "RecRBSize", 512);
@@ -1383,7 +1392,112 @@ void OBSBasic::OnFirstLoad()
 
 	if (showLogViewerOnStartup)
 		on_actionViewCurrentLog_triggered();
+
+#ifdef _WIN32
+	/* CricNode: Auto-detect camera on first launch */
+	CricNodeAutoDetectCamera();
+#endif
 }
+
+#ifdef _WIN32
+static bool HasDShowSource(void *param, obs_source_t *source)
+{
+	bool *found = static_cast<bool *>(param);
+	const char *id = obs_source_get_id(source);
+	if (id && strcmp(id, "dshow_input") == 0) {
+		*found = true;
+		return false; /* stop enumeration */
+	}
+	return true;
+}
+
+void OBSBasic::CricNodeAutoDetectCamera()
+{
+	/* Only auto-detect if no dshow_input source exists yet */
+	bool hasDShow = false;
+	obs_enum_sources(HasDShowSource, &hasDShow);
+	if (hasDShow)
+		return;
+
+	/* Create a temporary dshow_input source to enumerate devices
+	 * via the plugin's get_properties callback */
+	OBSSourceAutoRelease tempSrc = obs_source_create_private("dshow_input", "cricnode_enum_temp", nullptr);
+	if (!tempSrc)
+		return;
+
+	obs_properties_t *props = obs_source_properties(tempSrc);
+	if (!props)
+		return;
+
+	obs_property_t *devList = obs_properties_get(props, "video_device_id");
+	if (!devList) {
+		obs_properties_destroy(props);
+		return;
+	}
+
+	size_t count = obs_property_list_item_count(devList);
+	if (count == 0) {
+		obs_properties_destroy(props);
+		return;
+	}
+
+	/* Check config for last-used camera preference */
+	const char *preferred = config_get_string(activeConfiguration, "CricNode", "LastCameraDeviceId");
+	const char *selectedId = nullptr;
+	const char *selectedName = nullptr;
+
+	for (size_t i = 0; i < count; i++) {
+		const char *devId = obs_property_list_item_string(devList, i);
+		const char *devName = obs_property_list_item_name(devList, i);
+		if (!devId || !*devId)
+			continue;
+
+		/* Use preferred camera if still connected */
+		if (preferred && *preferred && strcmp(devId, preferred) == 0) {
+			selectedId = devId;
+			selectedName = devName;
+			break;
+		}
+
+		/* Otherwise pick the first available device */
+		if (!selectedId) {
+			selectedId = devId;
+			selectedName = devName;
+		}
+	}
+
+	if (!selectedId) {
+		obs_properties_destroy(props);
+		return;
+	}
+
+	/* Save this camera as the preference */
+	config_set_string(activeConfiguration, "CricNode", "LastCameraDeviceId", selectedId);
+	config_save(activeConfiguration);
+
+	/* Create the camera source with preferred resolution settings */
+	OBSDataAutoRelease settings = obs_data_create();
+	obs_data_set_string(settings, "video_device_id", selectedId);
+	obs_data_set_int(settings, "res_type", 0); /* ResType_Preferred */
+
+	std::string sourceName = selectedName ? selectedName : "Camera";
+	OBSSourceAutoRelease cameraSrc = obs_source_create("dshow_input", sourceName.c_str(), settings, nullptr);
+
+	if (!cameraSrc) {
+		obs_properties_destroy(props);
+		return;
+	}
+
+	/* Add camera source to the current scene */
+	OBSScene scene = GetCurrentScene();
+	if (scene) {
+		obs_scene_add(scene, cameraSrc);
+		blog(LOG_INFO, "CricNode: Auto-detected camera '%s' and added to scene", sourceName.c_str());
+	}
+
+	obs_properties_destroy(props);
+}
+#endif
 
 OBSBasic::~OBSBasic()
 {

@@ -21,10 +21,12 @@
 
 #include <components/UIValidation.hpp>
 #include <dialogs/OBSRemux.hpp>
+#include <utility/CricNodeMetadata.hpp>
 
 #include <qt-wrappers.hpp>
 
 #include <QDesktopServices>
+#include <chrono>
 #include <QFileInfo>
 
 void OBSBasic::on_actionShow_Recordings_triggered()
@@ -125,6 +127,14 @@ void OBSBasic::StartRecording()
 
 	OnEvent(OBS_FRONTEND_EVENT_RECORDING_STARTING);
 
+	/* CricNode: Initialize metadata event collector */
+	cricnodeEventCollector = std::make_unique<CricNodeEventCollector>();
+	cricnodeRecordingStartMs =
+		std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::system_clock::now().time_since_epoch())
+			.count();
+	cricnodeEventCollector->startCollecting();
+
 	SaveProject();
 
 	outputHandler->StartRecording();
@@ -220,6 +230,24 @@ void OBSBasic::RecordingStop(int code, QString last_error)
 			std::string path = outputHandler->lastRecordingPath;
 			QString str = QTStr("Basic.StatusBar.RecordingSavedTo");
 			ShowStatusBarMessage(str.arg(QT_UTF8(path.c_str())));
+
+			/* CricNode: Inject match metadata into MP4 */
+			if (cricnodeEventCollector) {
+				auto events = cricnodeEventCollector->stopCollecting();
+				if (!events.empty() ||
+				    cricnodeEventCollector->scorecardProvider != "none") {
+					CricNodeMetadata metadata;
+					metadata.appVersionCode = 1;
+					metadata.appVersionName = OBS_VERSION;
+					metadata.recordingStartUtc = cricnodeRecordingStartMs;
+					metadata.scorecardProvider =
+						cricnodeEventCollector->scorecardProvider;
+					metadata.matchId = cricnodeEventCollector->matchId;
+					metadata.clubId = cricnodeEventCollector->clubId;
+					metadata.events = events;
+					CricNodeMp4Writer::inject(path, metadata);
+				}
+			}
 		}
 	}
 

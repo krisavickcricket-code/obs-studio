@@ -43,6 +43,7 @@
 #include <QSystemTrayIcon>
 
 #include <deque>
+#include <memory>
 
 extern volatile bool recording_paused;
 
@@ -60,6 +61,8 @@ class VolumeControl;
 #ifdef YOUTUBE_ENABLED
 class YouTubeAppDock;
 #endif
+class CricNodeEventCollector;
+class CricNodeOverlayManager;
 class QMessageBox;
 class QWidgetAction;
 struct QuickTransition;
@@ -269,6 +272,10 @@ private:
 
 	void OnFirstLoad();
 
+#ifdef _WIN32
+	void CricNodeAutoDetectCamera();
+#endif
+
 	void GetFPSCommon(uint32_t &num, uint32_t &den) const;
 	void GetFPSInteger(uint32_t &num, uint32_t &den) const;
 	void GetFPSFraction(uint32_t &num, uint32_t &den) const;
@@ -443,6 +450,11 @@ private:
 
 	QPointer<OBSDock> controlsDock;
 	QPointer<OBSDock> mixerDock;
+	QPointer<OBSDock> cricnodeOverlayDock;
+
+	/* CricNode metadata encoding */
+	std::unique_ptr<CricNodeEventCollector> cricnodeEventCollector;
+	int64_t cricnodeRecordingStartMs = 0;
 
 public:
 	void AddDockWidget(QDockWidget *dock, Qt::DockWidgetArea area, bool extraBrowser = false);

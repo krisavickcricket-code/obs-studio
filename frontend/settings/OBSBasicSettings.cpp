@@ -4734,6 +4734,9 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 	ADD_QUALITY("Small");
 	ADD_QUALITY("HQ");
 	ADD_QUALITY("Lossless");
+	ADD_QUALITY("CricNode4KTo1080P");
+	ADD_QUALITY("CricNodeMaxQuality");
+	ADD_QUALITY("CricNodeSmallFile");
 
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("Software"), QString(SIMPLE_ENCODER_X264));
 	ui->simpleOutRecEncoder->addItem(ENCODER_STR("SoftwareLowCPU"), QString(SIMPLE_ENCODER_X264_LOWCPU));

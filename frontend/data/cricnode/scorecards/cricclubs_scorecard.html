@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>CricClubs Live Scorecard</title>
+<style>
+:root {
+    --base: clamp(12px, 1.725vw, 33px);
+    --score-font: clamp(20px, 3vw, 57px);
+    --team-logo: clamp(33px, 4.8vw, 90px);
+    --ball-size: clamp(15px, 2.1vw, 39px);
+    --ball-font: clamp(8px, 1.05vw, 20px);
+    --h: clamp(48px, 6.3vw, 120px);
+    --info-h: clamp(21px, 2.55vw, 48px);
+    --radius: clamp(3px, 0.4vw, 8px);
+    --accent: #005fc0;
+    --accent-light: #295fd6;
+    --accent-dark: #003d80;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: transparent;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* ── League badge — top-left (no background, like CricClubs) ── */
+.league-badge {
+    position: fixed;
+    top: clamp(4px, 0.4vw, 8px);
+    left: clamp(4px, 0.4vw, 8px);
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+.league-badge.vis { opacity: 1; }
+.league-badge img {
+    display: block;
+    height: clamp(40px, 5.5vw, 100px);
+    object-fit: contain;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+/* ── CricClubs badge — top-right (no background, like CricClubs) ── */
+.cc-badge {
+    position: fixed;
+    top: clamp(4px, 0.4vw, 8px);
+    right: clamp(4px, 0.4vw, 8px);
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+.cc-badge.vis { opacity: 1; }
+.cc-badge img {
+    display: block;
+    height: clamp(40px, 5.5vw, 100px);
+    object-fit: contain;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+/* ── Overlay wrapper ── */
+.overlay {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.4s;
+    padding: 0 clamp(16px, 2vw, 40px) clamp(8px, 0.8vw, 16px);
+}
+.overlay.vis { opacity: 1; }
+
+/* ── Main bar ── */
+.bar {
+    display: flex;
+    align-items: stretch;
+    height: var(--h);
+    background: rgba(255,255,255,0.97);
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -1px 8px rgba(0,0,0,0.12);
+    overflow: hidden;
+}
+.cell { display: flex; align-items: center; }
+
+.team-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 clamp(8px, 0.8vw, 14px);
+    background: var(--accent);
+    color: #fff;
+    font-size: calc(var(--base) * 0.9);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    min-width: clamp(60px, 8vw, 160px);
+}
+.team-box.bowl-box { background: #37474F; }
+
+.c-logo { padding: 0 clamp(3px, 0.3vw, 5px); flex-shrink: 0; }
+.c-logo img {
+    width: var(--team-logo);
+    height: var(--team-logo);
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #e0e0e0;
+}
+
+.bar-spacer { flex: 1; min-width: clamp(4px, 0.5vw, 10px); }
+
+.c-bat {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    padding: 0 clamp(5px, 0.5vw, 8px);
+    flex-shrink: 0;
+}
+.b-row {
+    display: flex;
+    align-items: baseline;
+    gap: clamp(3px, 0.3vw, 5px);
+    line-height: 1.3;
+    white-space: nowrap;
+}
+.b-name {
+    font-size: var(--base);
+    font-weight: 400;
+    color: #555;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    max-width: clamp(80px, 14vw, 260px);
+}
+.b-name.strike { color: #111; font-weight: 700; }
+.b-fig { font-size: calc(var(--base) * 0.85); color: #aaa; flex-shrink: 0; }
+.b-fig b { color: #333; font-weight: 600; }
+
+.c-score { display: flex; align-items: stretch; flex-shrink: 0; }
+.c-score-left {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: var(--accent-light);
+    color: #fff;
+    padding: 0 clamp(6px, 0.6vw, 10px);
+    min-width: clamp(28px, 2.8vw, 44px);
+}
+.c-score-left .abbr { font-size: calc(var(--base) * 0.85); font-weight: 700; letter-spacing: 0.5px; }
+.c-score-left .rr { font-size: calc(var(--base) * 0.6); opacity: 0.8; }
+.c-score-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: var(--accent-dark);
+    color: #fff;
+    padding: 0 clamp(8px, 0.8vw, 14px);
+    min-width: clamp(40px, 4vw, 64px);
+}
+.c-score-right .sc { font-size: var(--score-font); font-weight: 700; line-height: 1.1; transition: transform 0.2s; }
+.c-score-right .sc.flash { transform: scale(1.08); }
+.c-score-right .ov-sm { font-size: calc(var(--base) * 0.6); opacity: 0.7; }
+
+.c-bowl {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 clamp(5px, 0.5vw, 8px);
+    flex-shrink: 0;
+    border-left: 1px solid #e8e8e8;
+}
+.bw-name { font-size: var(--base); font-weight: 400; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: clamp(80px, 14vw, 260px); }
+.bw-fig { font-size: calc(var(--base) * 0.85); color: #aaa; }
+.bw-fig .wk { color: #C62828; font-weight: 600; }
+
+.c-overs {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 0 clamp(4px, 0.4vw, 6px);
+    flex-shrink: 0;
+    border-left: 1px solid #e8e8e8;
+}
+.ov-label { font-size: calc(var(--base) * 0.55); color: #bbb; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.ov-val { font-size: calc(var(--base) * 1.1); font-weight: 700; color: #222; line-height: 1.2; }
+
+.c-balls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-content: center;
+    gap: clamp(1.5px, 0.15vw, 2.5px);
+    padding: 0 clamp(4px, 0.4vw, 6px);
+    flex-shrink: 0;
+    border-left: 1px solid #e8e8e8;
+}
+.dot {
+    width: var(--ball-size);
+    height: var(--ball-size);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--ball-font);
+    font-weight: 700;
+    color: #fff;
+}
+.dot.pop { animation: pop 0.25s ease-out; }
+@keyframes pop { 0%{transform:scale(0)} 70%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+/* ── Info strip ── */
+.info {
+    display: flex;
+    height: var(--info-h);
+    font-size: calc(var(--base) * 0.78);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    color: #fff;
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden;
+}
+.info-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0 clamp(8px, 0.8vw, 14px);
+    background: #212121;
+    white-space: nowrap;
+    overflow: hidden;
+    gap: clamp(6px, 0.7vw, 12px);
+}
+.info-main .teams { text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.85; }
+.info-main .chase-txt { color: #81C784; }
+.info-main .result-txt { color: #81C784; font-weight: 600; letter-spacing: 0.5px; }
+.info-main .so-pill { background: #C62828; padding: 1px clamp(4px, 0.4vw, 6px); border-radius: 2px; font-size: calc(var(--base) * 0.7); font-weight: 700; letter-spacing: 0.5px; }
+.info-main .inn1-pill { background: rgba(255,255,255,0.1); padding: 0 clamp(3px, 0.3vw, 5px); border-radius: 2px; font-size: calc(var(--base) * 0.72); }
+.info-brand {
+    display: flex;
+    align-items: center;
+    gap: clamp(3px, 0.3vw, 5px);
+    padding: 0 clamp(8px, 0.8vw, 14px);
+    background: #212121;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    border-left: 1px solid rgba(255,255,255,0.08);
+}
+.info-brand img { height: clamp(11px, 1.2vw, 20px); object-fit: contain; }
+
+/* ── Waiting state (legacy small box — hidden, replaced by pre-match bar) ── */
+.wait {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.97);
+    padding: clamp(6px, 0.6vw, 10px) clamp(10px, 1vw, 16px);
+    text-align: center;
+    border-radius: var(--radius);
+    box-shadow: 0 1px 8px rgba(0,0,0,0.12);
+    color: #333;
+}
+.wait.vis { display: flex; }
+.wait .w-title { font-size: clamp(15px, 1.28vw, 20px); font-weight: 600; color: #222; }
+.wait .w-msg { font-size: calc(var(--base) * 0.85); color: #999; margin-top: 2px; }
+.wait .w-msg.error { color: #E65100; }
+
+/* ── Pre-match bar (same shape as live bar, "waiting" message) ── */
+#preMatch { display: none; }
+#preMatch.vis { display: block; }
+.pm-bar {
+    display: flex;
+    align-items: stretch;
+    height: var(--h);
+    background: rgba(255,255,255,0.97);
+    border-radius: var(--radius) var(--radius) 0 0;
+    box-shadow: 0 -1px 8px rgba(0,0,0,0.12);
+    overflow: hidden;
+}
+.pm-msg {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 clamp(12px, 1.2vw, 24px);
+    font-size: clamp(16px, 2.2vw, 42px);
+    font-weight: 700;
+    color: var(--accent-dark);
+    text-align: center;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.conn { position:fixed; top:4px; right:50%; width:5px; height:5px; border-radius:50%; opacity:0; z-index:30; }
+.conn.warn { background:#FF9800; opacity:0.7; }
+.conn.err { background:#E53935; opacity:0.7; animation:blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:0.4} 50%{opacity:1} }
+
+/* ── Side panel ── */
+.side-panel {
+    position: fixed;
+    right: clamp(16px, 2vw, 40px);
+    bottom: calc(var(--h) + var(--info-h) + clamp(16px, 1.6vw, 32px));
+    z-index: 15;
+    width: clamp(160px, 18vw, 340px);
+    background: rgba(0,0,0,0.82);
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: calc(var(--base) * 0.85);
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.4s, transform 0.4s;
+    overflow: hidden;
+}
+.side-panel.vis { opacity: 1; transform: translateX(0); }
+.sp-section { padding: clamp(4px, 0.4vw, 8px) clamp(6px, 0.6vw, 10px); }
+.sp-section + .sp-section { border-top: 1px solid rgba(255,255,255,0.1); }
+.sp-title { font-size: calc(var(--base) * 0.65); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+.sp-main { font-weight: 600; font-size: calc(var(--base) * 0.95); }
+.sp-detail { font-size: calc(var(--base) * 0.75); color: rgba(255,255,255,0.7); line-height: 1.4; }
+.sp-player-row { display: flex; align-items: center; gap: clamp(4px, 0.4vw, 6px); margin-top: 2px; }
+.sp-player-photo { width: clamp(20px, 2.2vw, 36px); height: clamp(20px, 2.2vw, 36px); border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,0.2); }
+
+/* ── Overlay cards (intro, wicket, innings break, result) ── */
+.card-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 25;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.6);
+}
+.card-overlay.vis { display: flex; }
+.card {
+    background: rgba(20,20,20,0.95);
+    border-radius: clamp(6px, 0.6vw, 12px);
+    padding: clamp(16px, 2vw, 40px);
+    color: #fff;
+    text-align: center;
+    min-width: clamp(260px, 30vw, 550px);
+    max-width: 60vw;
+    box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+    animation: cardIn 0.4s ease-out;
+}
+@keyframes cardIn { 0%{transform:scale(0.9);opacity:0} 100%{transform:scale(1);opacity:1} }
+.card-title { font-size: clamp(20px, 2.4vw, 44px); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: clamp(8px, 0.8vw, 16px); }
+.card-divider { height: 1px; background: rgba(255,255,255,0.15); margin: clamp(6px, 0.6vw, 12px) 0; }
+.card-team-row { display: flex; align-items: center; justify-content: center; gap: clamp(8px, 0.8vw, 14px); margin: clamp(4px, 0.4vw, 8px) 0; }
+.card-team-logo { width: clamp(30px, 3.5vw, 64px); height: clamp(30px, 3.5vw, 64px); border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.2); }
+.card-team-name { font-size: clamp(20px, 2.6vw, 48px); font-weight: 600; }
+.card-vs { font-size: clamp(16px, 1.8vw, 32px); font-weight: 700; color: rgba(255,255,255,0.5); letter-spacing: 1px; }
+.card-score { font-size: clamp(28px, 3.6vw, 68px); font-weight: 700; }
+.card-overs { font-size: calc(var(--base) * 0.75); color: rgba(255,255,255,0.5); }
+.card-detail { font-size: calc(var(--base) * 0.85); color: rgba(255,255,255,0.7); line-height: 1.5; }
+.card-result { font-size: clamp(20px, 2.2vw, 40px); font-weight: 700; color: #81C784; margin-top: clamp(4px, 0.4vw, 8px); }
+.card-brand { margin-top: clamp(10px, 1vw, 18px); font-size: calc(var(--base) * 0.65); color: rgba(255,255,255,0.35); letter-spacing: 0.5px; display: flex; align-items: center; justify-content: center; gap: clamp(4px, 0.4vw, 6px); }
+.card-brand img { height: clamp(10px, 1.1vw, 18px); object-fit: contain; }
+.card.wicket .card-title { color: #EF5350; }
+.card-player-photo { width: clamp(50px, 6vw, 100px); height: clamp(50px, 6vw, 100px); border-radius: 50%; object-fit: cover; border: 3px solid rgba(255,255,255,0.2); margin: clamp(4px, 0.4vw, 8px) auto; }
+.card-player-name { font-size: clamp(20px, 2.4vw, 44px); font-weight: 600; }
+.card-player-score { font-size: clamp(24px, 3vw, 56px); font-weight: 700; }
+.card-player-detail { font-size: calc(var(--base) * 0.8); color: rgba(255,255,255,0.6); }
+
+/* ── New player intro card ── */
+.player-profiles {
+    display: flex;
+    justify-content: center;
+    gap: clamp(16px, 2vw, 40px);
+    margin-top: clamp(6px, 0.6vw, 12px);
+}
+.player-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: clamp(100px, 12vw, 200px);
+}
+.player-profile .pp-role {
+    font-size: calc(var(--base) * 0.6);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: clamp(2px, 0.2vw, 4px);
+}
+.player-profile .pp-photo {
+    width: clamp(50px, 6vw, 100px);
+    height: clamp(50px, 6vw, 100px);
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255,255,255,0.2);
+    margin-bottom: clamp(4px, 0.4vw, 8px);
+}
+.player-profile .pp-name {
+    font-size: clamp(18px, 2.2vw, 40px);
+    font-weight: 600;
+}
+.player-profile .pp-detail {
+    font-size: calc(var(--base) * 0.75);
+    color: rgba(255,255,255,0.5);
+    margin-top: 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="conn" id="conn"></div>
+<div class="league-badge" id="leagueBadge"><img id="leagueBadgeImg" src="" alt=""></div>
+<div class="cc-badge" id="ccBadge"><img id="ccBadgeImg" src="" alt="CricClubs"></div>
+
+<div class="overlay" id="overlay">
+    <div class="wait vis" id="waitEl">
+        <div class="w-title" id="wT">Loading match...</div>
+        <div class="w-msg" id="wM">Connecting to CricClubs...</div>
+    </div>
+
+    <div id="preMatch">
+        <div class="pm-bar">
+            <div class="team-box" id="pmTeam1Box">TEAM 1</div>
+            <div class="cell c-logo"><img id="pmLogo1" src="" alt="" style="visibility:hidden;"></div>
+            <div class="pm-msg" id="pmMsg">Scoring will begin when the game starts</div>
+            <div class="cell c-logo"><img id="pmLogo2" src="" alt="" style="visibility:hidden;"></div>
+            <div class="team-box bowl-box" id="pmTeam2Box">TEAM 2</div>
+        </div>
+        <div class="info">
+            <div class="info-main"><span class="teams" id="pmInfoTeams">Team 1 &bull; Team 2</span></div>
+            <div class="info-brand" id="pmInfoBrand"></div>
+        </div>
+    </div>
+
+    <div id="live" style="display:none;">
+        <div class="bar">
+            <div class="team-box" id="batTeamBox">BAT</div>
+            <div class="cell c-logo"><img id="batLogo" src="" alt=""></div>
+            <div class="bar-spacer"></div>
+            <div class="c-bat">
+                <div class="b-row">
+                    <span class="b-name strike" id="striker">&mdash;*</span>
+                    <span class="b-fig"><b id="sR">0</b> <span id="sB">(0)</span></span>
+                </div>
+                <div class="b-row">
+                    <span class="b-name" id="nonStriker">&mdash;</span>
+                    <span class="b-fig"><b id="nsR">0</b> <span id="nsB">(0)</span></span>
+                </div>
+            </div>
+            <div class="c-score">
+                <div class="c-score-left">
+                    <span class="abbr" id="batAbbr">---</span>
+                    <span class="rr" id="rr">RR 0.00</span>
+                </div>
+                <div class="c-score-right">
+                    <span class="sc" id="scoreMain">0/0</span>
+                    <span class="ov-sm" id="ovSmall">0.0 ov</span>
+                </div>
+            </div>
+            <div class="c-bowl">
+                <span class="bw-name" id="bowlName">&mdash;</span>
+                <span class="bw-fig"><span class="wk" id="bowlW">0</span>/<span id="bowlR">0</span> <span id="bowlOv" style="color:#aaa"></span></span>
+            </div>
+            <div class="c-overs">
+                <span class="ov-label">OVERS</span>
+                <span class="ov-val" id="overs">0.0</span>
+            </div>
+            <div class="cell c-balls" id="balls"></div>
+            <div class="bar-spacer"></div>
+            <div class="cell c-logo"><img id="bowlLogo" src="" alt=""></div>
+            <div class="team-box bowl-box" id="bowlTeamBox">BOWL</div>
+        </div>
+        <div class="info">
+            <div class="info-main" id="infoMain">
+                <span class="teams" id="infoTeams">Team 1 &bull; Team 2</span>
+            </div>
+            <div class="info-brand" id="infoBrand"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Side panel -->
+<div class="side-panel" id="sidePanel">
+    <div class="sp-section">
+        <div class="sp-title">PARTNERSHIP</div>
+        <div class="sp-main" id="spPartRuns">0 (0 balls)</div>
+        <div class="sp-detail" id="spPartDetail"></div>
+    </div>
+    <div class="sp-section" id="spLastWicket" style="display:none;">
+        <div class="sp-title">LAST WICKET</div>
+        <div class="sp-player-row">
+            <img class="sp-player-photo" id="spLwPhoto" src="" alt="">
+            <div>
+                <div class="sp-main" id="spLwName"></div>
+                <div class="sp-detail" id="spLwFig"></div>
+            </div>
+        </div>
+        <div class="sp-detail" id="spLwHow" style="margin-top:2px;"></div>
+    </div>
+</div>
+
+<!-- Match Intro -->
+<div class="card-overlay" id="introOverlay">
+    <div class="card">
+        <div class="card-team-row"><img class="card-team-logo" id="introLogo1" src="" alt=""><div><div class="card-team-name" id="introT1"></div></div></div>
+        <div class="card-vs">VS</div>
+        <div class="card-team-row"><img class="card-team-logo" id="introLogo2" src="" alt=""><div><div class="card-team-name" id="introT2"></div></div></div>
+        <div class="card-divider"></div>
+        <div class="card-detail" id="introDetail"></div>
+        <div class="card-brand" id="introBrand"></div>
+    </div>
+</div>
+
+<!-- Wicket -->
+<div class="card-overlay" id="wicketOverlay">
+    <div class="card wicket">
+        <div class="card-title">WICKET!</div>
+        <img class="card-player-photo" id="wkPhoto" src="" alt="">
+        <div class="card-player-name" id="wkName"></div>
+        <div class="card-player-score" id="wkScore"></div>
+        <div class="card-player-detail" id="wkDetail"></div>
+        <div class="card-divider"></div>
+        <div class="card-detail" id="wkHow"></div>
+    </div>
+</div>
+
+<!-- Innings Break -->
+<div class="card-overlay" id="inningsOverlay">
+    <div class="card">
+        <div class="card-title">INNINGS BREAK</div>
+        <div class="card-divider"></div>
+        <div class="card-team-row"><img class="card-team-logo" id="innLogo" src="" alt=""><div><div class="card-team-name" id="innTeam"></div><div class="card-score" id="innScore"></div><div class="card-overs" id="innOvers"></div></div></div>
+        <div class="card-divider"></div>
+        <div class="card-detail" id="innTarget"></div>
+        <div class="card-brand" id="innBrand"></div>
+    </div>
+</div>
+
+<!-- New Player Intro -->
+<div class="card-overlay" id="playerOverlay">
+    <div class="card">
+        <div class="card-title" id="playerTitle">NEW BATSMAN</div>
+        <div class="player-profiles" id="playerProfiles"></div>
+    </div>
+</div>
+
+<!-- Match Result -->
+<div class="card-overlay" id="resultOverlay">
+    <div class="card">
+        <div class="card-title">MATCH RESULT</div>
+        <div class="card-divider"></div>
+        <div class="card-team-row"><img class="card-team-logo" id="resLogo1" src="" alt=""><div><div class="card-team-name" id="resT1"></div><div class="card-score" id="resS1"></div><div class="card-overs" id="resO1"></div></div></div>
+        <div class="card-team-row" style="margin-top:4px;"><img class="card-team-logo" id="resLogo2" src="" alt=""><div><div class="card-team-name" id="resT2"></div><div class="card-score" id="resS2"></div><div class="card-overs" id="resO2"></div></div></div>
+        <div class="card-divider"></div>
+        <div class="card-result" id="resResult"></div>
+        <div class="card-detail" id="resMom"></div>
+        <div class="card-brand" id="resBrand"></div>
+    </div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+
+    var params = new URLSearchParams(window.location.search);
+    var matchId = params.get('matchId');
+    var clubId = params.get('clubId');
+    var pollMs = Math.max(3, parseInt(params.get('poll'), 10) || 10) * 1000;
+
+    var API = 'https://cricclubs.com/liveScoreOverlayData.do';
+
+    // Feature flags from URL params (default all on)
+    var feat = {
+        intro:     params.get('intro') !== '0',
+        player:    params.get('player') !== '0',
+        wicket:    params.get('wicket') !== '0',
+        innings:   params.get('innings') !== '0',
+        sidepanel: params.get('sidepanel') !== '0',
+        result:    params.get('result') !== '0'
+    };
+
+    var team1Param = params.get('team1') || '';
+    var team2Param = params.get('team2') || '';
+    var matchDateParam = params.get('matchDate') || '';
+    var logo1Param = params.get('logo1') || '';
+    var logo2Param = params.get('logo2') || '';
+
+    var lastData = null, lastScore = '', lastBallCnt = 0;
+    var errCnt = 0, interval = pollMs, stopped = false;
+    var introShown = false, prevLastOutId = null, prevMatchEnded = null;
+    var prevB1Id = null, prevB2Id = null, prevBowlId = null, playerCardTimer = null;
+    var colorsApplied = false;
+
+    /* ── Match ID discovery for SCHEDULED games ──
+     * When a scheduled game is selected, the overlay gets a fixtureId (not a real matchId).
+     * Discovery periodically fetches the CricClubs fixtures page, looks for the matching
+     * teams, and when a scorecard link appears (game went live), extracts the real matchId.
+     */
+    var discoveryActive = false, discoveryTimer = null;
+
+    function normalizeTeam(s) {
+        return (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    }
+
+    function startDiscovery() {
+        if (discoveryActive || !team1Param || !team2Param) return;
+        discoveryActive = true;
+        doDiscovery();
+        discoveryTimer = setInterval(doDiscovery, 60000);
+    }
+
+    function stopDiscovery() {
+        if (!discoveryActive) return;
+        discoveryActive = false;
+        if (discoveryTimer) { clearInterval(discoveryTimer); discoveryTimer = null; }
+    }
+
+    /** Extract date string from a schedule block's .sch-time element */
+    function extractBlockDate(block) {
+        var schTime = block.querySelector('.sch-time');
+        if (!schTime) return '';
+        var h2 = schTime.querySelector('h2');
+        var h5s = schTime.querySelectorAll('h5');
+        var dayNum = h2 ? (h2.textContent || '').trim() : '';
+        var monthYear = h5s.length > 0 ? (h5s[0].textContent || '').trim() : '';
+        return (monthYear + ' ' + dayNum).trim().toLowerCase();
+    }
+
+    var normalizedDateParam = normalizeTeam(matchDateParam);
+
+    function doDiscovery() {
+        var year = new Date().getFullYear();
+        var fixturesUrl = 'https://cricclubs.com/club/fixtures.do?clubId=' + clubId +
+            '&league=All&year=' + year + '&allseries=true';
+
+        fetch(fixturesUrl)
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+                var blocks = doc.querySelectorAll('div.schedule-all');
+                var t1n = normalizeTeam(team1Param);
+                var t2n = normalizeTeam(team2Param);
+
+                for (var i = 0; i < blocks.length; i++) {
+                    var block = blocks[i];
+                    var teamLinks = block.querySelectorAll('.schedule-text h3 a[href*="viewTeam"]');
+                    var bt1 = normalizeTeam(teamLinks.length > 0 ? teamLinks[0].textContent : '');
+                    var bt2 = normalizeTeam(teamLinks.length > 1 ? teamLinks[1].textContent : '');
+
+                    // Match teams (order-independent)
+                    if (!((bt1 === t1n && bt2 === t2n) || (bt1 === t2n && bt2 === t1n))) continue;
+
+                    // Match date to disambiguate rematches
+                    if (normalizedDateParam) {
+                        var blockDate = extractBlockDate(block);
+                        if (blockDate && blockDate !== normalizedDateParam) continue;
+                    }
+
+                    // Check for scorecard link with a real matchId
+                    var scorecardLink = block.querySelector('a[href*="viewScorecard"]');
+                    if (!scorecardLink) continue;
+
+                    var href = scorecardLink.getAttribute('href') || '';
+                    var mm = href.match(/matchId=(\d+)/);
+                    if (!mm) continue;
+
+                    var newMatchId = mm[1];
+                    if (newMatchId !== String(matchId)) {
+                        matchId = newMatchId;
+                        stopDiscovery();
+                        // Reset state for fresh start with the correct matchId
+                        lastData = null; lastScore = ''; lastBallCnt = 0;
+                        errCnt = 0; interval = pollMs;
+                        introShown = false; prevLastOutId = null; prevMatchEnded = null;
+                        prevB1Id = null; prevB2Id = null; prevBowlId = null;
+                        colorsApplied = false;
+                        showWait('Match Found', 'Loading live scorecard...');
+                    }
+                    return;
+                }
+            })
+            .catch(function() { /* discovery fetch failed — will retry next interval */ });
+    }
+
+    var ov = document.getElementById('overlay');
+
+    function show() { ov.classList.add('vis'); }
+
+    if (!matchId || !clubId) {
+        document.getElementById('wT').textContent = 'No Match/Club ID';
+        document.getElementById('wM').textContent = 'Add ?matchId=<id>&clubId=<id>';
+        document.getElementById('wM').classList.add('error');
+        show(); return;
+    }
+
+    function logoUrl(p) {
+        if (!p) return '';
+        if (p.startsWith('http')) return p;
+        return 'https://cricclubs.com' + p;
+    }
+
+    function stripHtml(s) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = s || '';
+        return tmp.textContent || tmp.innerText || '';
+    }
+
+    function darken(hex, amt) {
+        hex = hex.replace('#', '');
+        var r = Math.max(0, parseInt(hex.substr(0,2),16) - amt);
+        var g = Math.max(0, parseInt(hex.substr(2,2),16) - amt);
+        var b = Math.max(0, parseInt(hex.substr(4,2),16) - amt);
+        return '#' + [r,g,b].map(function(c){ return ('0'+c.toString(16)).slice(-2); }).join('');
+    }
+
+    function ballBg(v) {
+        var s = String(v);
+        if (s==='0'||s==='.') return '#9E9E9E';
+        if (s==='1'||s==='2'||s==='3') return '#43A047';
+        if (s==='4') return '#00897B';
+        if (s==='6') return '#E91E63';
+        if (s==='W'||s==='Wt'||s==='w') return '#C62828';
+        if (s.toLowerCase()==='wd') return '#EC407A';
+        if (s.toLowerCase().indexOf('nb')===0) return '#FF9800';
+        if (s.toLowerCase().indexOf('b')===0) return '#78909C';
+        return '#757575';
+    }
+
+    function ballTxt(v) {
+        var s = String(v);
+        if (s==='.') return '0';
+        if (s.toLowerCase()==='wd') return 'WD';
+        if (s==='Wt') return 'W';
+        if (s.toLowerCase().indexOf('nb')===0) return 'NB';
+        if (s.toLowerCase().indexOf('b')===0) return 'B';
+        return s;
+    }
+
+    /* Strip HTML entities (&#8288; etc.) and invisible Unicode from API strings */
+    var _cleanEl = document.createElement('textarea');
+    function clean(s) {
+        if (!s) return s;
+        _cleanEl.innerHTML = s;
+        return _cleanEl.value.replace(/[\u2060\u200B\u200C\u200D\uFEFF]/g, '').trim();
+    }
+
+    function txt(id, v) { var e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; }
+    function im(id, u) {
+        var e = document.getElementById(id);
+        if (!e) return;
+        var v = u || '';
+        if (e.getAttribute('src') !== v) {
+            e.setAttribute('src', v);
+            e.style.visibility = v ? 'visible' : 'hidden';
+        }
+    }
+
+    function renderBalls(stack) {
+        var c = document.getElementById('balls');
+        if (!stack || !stack.length) { c.innerHTML = ''; lastBallCnt = 0; return; }
+        var r = stack.slice(-10), key = r.join(',');
+        if (c.dataset.k === key) return;
+        var prev = lastBallCnt; lastBallCnt = r.length;
+        c.innerHTML = '';
+        r.forEach(function(v, i) {
+            var el = document.createElement('span');
+            el.className = 'dot' + (i >= prev && prev > 0 ? ' pop' : '');
+            el.style.background = ballBg(v);
+            el.textContent = ballTxt(v);
+            c.appendChild(el);
+        });
+        c.dataset.k = key;
+    }
+
+    function showWait(title, msg, isError) {
+        document.getElementById('live').style.display = 'none';
+        document.getElementById('sidePanel').classList.remove('vis');
+
+        // If we have team names (T1 vs T2), show the pre-match bar
+        var parts = title.split(/\s+vs\s+/i);
+        if (parts.length === 2 && !isError) {
+            document.getElementById('waitEl').classList.remove('vis');
+            var pm = document.getElementById('preMatch');
+            pm.classList.add('vis');
+            txt('pmTeam1Box', parts[0].trim());
+            txt('pmTeam2Box', parts[1].trim());
+            txt('pmInfoTeams', parts[0].trim() + ' \u2022 ' + parts[1].trim());
+            // Show team logos if available from fixture data
+            if (logo1Param) im('pmLogo1', logoUrl(decodeURIComponent(logo1Param)));
+            if (logo2Param) im('pmLogo2', logoUrl(decodeURIComponent(logo2Param)));
+        } else {
+            // Fallback: error/loading states use small box
+            document.getElementById('preMatch').classList.remove('vis');
+            document.getElementById('waitEl').classList.add('vis');
+            txt('wT', title); txt('wM', msg);
+            document.getElementById('wM').classList.remove('error');
+            if (isError) document.getElementById('wM').classList.add('error');
+        }
+        show();
+    }
+
+    function showLive() {
+        stopDiscovery();
+        document.getElementById('waitEl').classList.remove('vis');
+        document.getElementById('preMatch').classList.remove('vis');
+        document.getElementById('live').style.display = 'block';
+        show();
+    }
+
+    function showCard(id, duration) {
+        var el = document.getElementById(id);
+        el.classList.add('vis');
+        if (duration) setTimeout(function() { el.classList.remove('vis'); }, duration);
+    }
+
+    function brandHtml(cfg) {
+        if (cfg && cfg.powredByLogo1) {
+            return 'POWERED BY&nbsp;&nbsp;<img src="' + logoUrl(cfg.powredByLogo1) + '" alt="CricClubs">';
+        }
+        return 'POWERED BY CRICCLUBS';
+    }
+
+    var CC_LOGO = 'https://cricclubs.com/documentsRep/static/overlay/cc-overlay-logo.png';
+
+    function applyColors(cfg) {
+        if (!cfg || colorsApplied) return;
+        colorsApplied = true;
+        var primary = cfg.overlayScorebarColor || '#005fc0';
+        var secondary = cfg.cpBGSecondColor || primary;
+        document.documentElement.style.setProperty('--accent', primary);
+        document.documentElement.style.setProperty('--accent-light', secondary);
+        document.documentElement.style.setProperty('--accent-dark', darken(primary, 40));
+
+        // Top-right: always show CricClubs LIVE logo
+        im('ccBadgeImg', CC_LOGO);
+        document.getElementById('ccBadge').classList.add('vis');
+
+        // Top-left: league logo (only if club has a custom logo, not the generic CC logo)
+        if (cfg.logoS3Url) {
+            var isGeneric = cfg.logoS3Url.indexOf('cc-overlay-logo') !== -1;
+            if (!isGeneric) {
+                im('leagueBadgeImg', logoUrl(cfg.logoS3Url));
+                document.getElementById('leagueBadge').classList.add('vis');
+            }
+        }
+
+        // Info bar brand (live + pre-match)
+        document.getElementById('infoBrand').innerHTML = brandHtml(cfg);
+        document.getElementById('pmInfoBrand').innerHTML = brandHtml(cfg);
+    }
+
+    // --- Derive team logos from batting state ---
+    // API's firstLogo/secondLogo follow batting/bowling order, NOT t1/t2
+    function getTeamLogos(v) {
+        var isSecond = toBool(v.isSecondInningsStarted);
+        // firstLogo = batting team's logo, secondLogo = bowling team's logo
+        // In first innings: T1 bats → firstLogo=T1, secondLogo=T2
+        // In second innings: T2 bats → firstLogo=T2, secondLogo=T1
+        return {
+            t1: isSecond ? v.secondLogo : v.firstLogo,
+            t2: isSecond ? v.firstLogo : v.secondLogo
+        };
+    }
+
+    // --- INTRO ---
+    function doIntro(v, cfg, logos) {
+        if (introShown) return;
+        introShown = true;
+        im('introLogo1', logoUrl(logos.t1));
+        im('introLogo2', logoUrl(logos.t2));
+        txt('introT1', clean(v.t1Name) || 'Team 1');
+        txt('introT2', clean(v.t2Name) || 'Team 2');
+        var d = '';
+        if (v.seriesName) d += v.seriesName + '\n';
+        if (v.groundName) d += v.groundName + '\n';
+        if (v.toss) d += stripHtml(v.toss);
+        document.getElementById('introDetail').innerText = d;
+        document.getElementById('introBrand').innerHTML = brandHtml(cfg);
+        showCard('introOverlay', 8000);
+    }
+
+    // --- WICKET ---
+    function doWicket(v) {
+        im('wkPhoto', logoUrl(v.lastOutProfileImange));
+        txt('wkName', (v.lastOutFirstName||'') + ' ' + (v.lastOutLastName||''));
+        txt('wkScore', (v.lastOutRuns||'0') + ' (' + (v.lastOutBalls||'0') + ')');
+        var det = '';
+        if (v.lastOutFours && v.lastOutFours !== '0') det += v.lastOutFours + 'x4  ';
+        if (v.lastOUtSixers && v.lastOUtSixers !== '0') det += v.lastOUtSixers + 'x6';
+        txt('wkDetail', det.trim());
+        txt('wkHow', stripHtml(v.lastOutString || ''));
+        showCard('wicketOverlay', 6000);
+    }
+
+    // --- INNINGS BREAK ---
+    // Detect: first innings complete but second not started (not super over)
+    function toBool(val) { return val === 'true' || val === true || val === '1' || val === 1; }
+
+    function isInningsBreak(v) {
+        if (toBool(v.isSecondInningsStarted)) return false;
+        if (toBool(v.isMatchEnded)) return false;
+        if (toBool(v.isSuperOver)) return false;
+        if (toBool(v.isSuperOverSecondInningsStarted)) return false;
+        var overs = parseFloat(v.overs || '0');
+        var total = parseFloat(v.totalOvers || 0);
+        var wk = parseInt(v.tWickets || '0', 10);
+        // First innings done: all overs bowled OR all out (10 wickets)
+        return (total > 0 && overs >= total) || wk >= 10;
+    }
+
+    function showInningsBreak(v, cfg, logos) {
+        im('innLogo', logoUrl(logos.t1));
+        txt('innTeam', clean(v.t1Name) || 'Team 1');
+        txt('innScore', (v.t1Total||'0') + '/' + (v.t1Wickets||'0'));
+        txt('innOvers', '(' + (v.t1Overs||'0.0') + ' overs)');
+        var target = (parseInt(v.t1Total, 10) || 0) + 1;
+        txt('innTarget', 'Target: ' + target + ' from ' + (v.totalOvers||'?') + ' overs');
+        document.getElementById('innBrand').innerHTML = brandHtml(cfg);
+        // Persistent — no timeout, stays until second innings starts
+        document.getElementById('inningsOverlay').classList.add('vis');
+    }
+
+    function hideInningsBreak() {
+        document.getElementById('inningsOverlay').classList.remove('vis');
+    }
+
+    // --- NEW PLAYER INTROS ---
+    function buildProfileHtml(role, name, photo, detail) {
+        return '<div class="player-profile">' +
+            '<div class="pp-role">' + role + '</div>' +
+            '<img class="pp-photo" src="' + logoUrl(photo) + '" alt="">' +
+            '<div class="pp-name">' + name + '</div>' +
+            (detail ? '<div class="pp-detail">' + detail + '</div>' : '') +
+            '</div>';
+    }
+
+    function checkPlayerIntros(v) {
+        var b1Id = v.batsman1ID ? String(v.batsman1ID) : null;
+        var b2Id = v.batsman2ID ? String(v.batsman2ID) : null;
+        var bwId = v.bowlerID ? String(v.bowlerID) : null;
+
+        // Skip on first poll (just record IDs)
+        if (prevB1Id === null && prevB2Id === null && prevBowlId === null) {
+            prevB1Id = b1Id; prevB2Id = b2Id; prevBowlId = bwId;
+            return;
+        }
+
+        var newBatsmen = [];
+        var newBowler = null;
+
+        // Detect new batsmen
+        if (b1Id && b1Id !== prevB1Id && b1Id !== prevB2Id) {
+            newBatsmen.push({
+                name: clean((v.batsman1FirstName||'') + ' ' + (v.batsman1LastName||'')),
+                photo: v.batsman1ProfileImange || '',
+                runs: v.batsman1Runs || '0',
+                balls: v.batsman1Balls || '0'
+            });
+        }
+        if (b2Id && b2Id !== prevB2Id && b2Id !== prevB1Id) {
+            newBatsmen.push({
+                name: clean((v.batsman2FirstName||'') + ' ' + (v.batsman2LastName||'')),
+                photo: v.batsman2ProfileImange || '',
+                runs: v.batsman2Runs || '0',
+                balls: v.batsman2Balls || '0'
+            });
+        }
+
+        // Detect new bowler
+        if (bwId && bwId !== prevBowlId) {
+            newBowler = {
+                name: clean((v.bowlerFirstName||'') + ' ' + (v.bowlerLastName||'')),
+                photo: v.bowlerProfileImange || '',
+                overs: v.bowlerOvers || '0.0',
+                wickets: v.bowlerWickets || '0',
+                runs: v.bowlerRuns || '0'
+            };
+        }
+
+        prevB1Id = b1Id; prevB2Id = b2Id; prevBowlId = bwId;
+
+        // Nothing new
+        if (newBatsmen.length === 0 && !newBowler) return;
+
+        // Build card
+        var title = '';
+        var html = '';
+
+        if (newBatsmen.length === 2) {
+            title = 'OPENING PAIR';
+        } else if (newBatsmen.length === 1 && newBowler) {
+            title = 'NEW PLAYERS';
+        } else if (newBatsmen.length === 1) {
+            title = 'NEW BATSMAN';
+        } else if (newBowler) {
+            title = 'NEW BOWLER';
+        }
+
+        newBatsmen.forEach(function(b) {
+            html += buildProfileHtml('BATSMAN', b.name, b.photo, b.runs + ' (' + b.balls + ')');
+        });
+        if (newBowler) {
+            html += buildProfileHtml('BOWLER', newBowler.name, newBowler.photo,
+                newBowler.wickets + '/' + newBowler.runs + ' (' + newBowler.overs + ' ov)');
+        }
+
+        txt('playerTitle', title);
+        document.getElementById('playerProfiles').innerHTML = html;
+
+        // Clear any existing timer and show for 6 seconds
+        if (playerCardTimer) clearTimeout(playerCardTimer);
+        showCard('playerOverlay');
+        playerCardTimer = setTimeout(function() {
+            document.getElementById('playerOverlay').classList.remove('vis');
+            playerCardTimer = null;
+        }, 6000);
+    }
+
+    // --- MATCH RESULT ---
+    function doResult(v, cfg, logos) {
+        im('resLogo1', logoUrl(logos.t1));
+        im('resLogo2', logoUrl(logos.t2));
+        txt('resT1', clean(v.t1Name) || 'Team 1');
+        txt('resS1', (v.t1Total||'0') + '/' + (v.t1Wickets||'0'));
+        txt('resO1', '(' + (v.t1Overs||'0.0') + ' ov)');
+        txt('resT2', clean(v.t2Name) || 'Team 2');
+        txt('resS2', (v.t2Total||'0') + '/' + (v.t2Wickets||'0'));
+        txt('resO2', '(' + (v.t2Overs||'0.0') + ' ov)');
+        txt('resResult', v.result || v.shortResult || '');
+        txt('resMom', v.manOfTheMatch ? 'Man of the Match: ' + clean(v.manOfTheMatch) : '');
+        document.getElementById('resBrand').innerHTML = brandHtml(cfg);
+        showCard('resultOverlay');
+    }
+
+    // --- LIVE SCORECARD ---
+    function updateLive(v, balls, logos) {
+        var isEnded = toBool(v.isMatchEnded);
+        var isSecondRaw = toBool(v.isSecondInningsStarted);
+        // For completed matches, show fixture order (T1 left, T2 right)
+        var isSecond = !isEnded && isSecondRaw;
+
+        var batTeam = clean(isSecond ? (v.t2Name||'T2') : (v.t1Name||'T1'));
+        var bowlTeam = clean(isSecond ? (v.t1Name||'T1') : (v.t2Name||'T2'));
+        var batCode = isSecond ? (v.t2Code||'---') : (v.t1Code||'---');
+        // Use derived team logos — always correct regardless of innings
+        var batLogo = isSecond ? logos.t2 : logos.t1;
+        var bowlLogo = isSecond ? logos.t1 : logos.t2;
+
+        txt('batTeamBox', batTeam);
+        txt('bowlTeamBox', bowlTeam);
+        im('batLogo', logoUrl(batLogo));
+        im('bowlLogo', logoUrl(bowlLogo));
+
+        // Batsmen
+        txt('striker', (clean(v.batsman1Name)||'\u2014') + '*');
+        txt('sR', v.batsman1Runs||'0');
+        txt('sB', '(' + (v.batsman1Balls||'0') + ')');
+        txt('nonStriker', clean(v.batsman2Name)||'\u2014');
+        txt('nsR', v.batsman2Runs||'0');
+        txt('nsB', '(' + (v.batsman2Balls||'0') + ')');
+
+        // Score — for completed matches with fixture order, show T1's total
+        var sc, currentOvers;
+        if (isEnded && isSecondRaw) {
+            sc = (v.t1Total||'0') + '/' + (v.t1Wickets||'0');
+            currentOvers = v.t1Overs || '0.0';
+        } else {
+            sc = (v.tTotal||'0') + '/' + (v.tWickets||'0');
+            currentOvers = v.overs || '0.0';
+        }
+        txt('batAbbr', batCode);
+        txt('rr', 'RR ' + (v.runrate||'0.00'));
+        if (lastScore && lastScore !== sc) {
+            var el = document.getElementById('scoreMain');
+            el.classList.add('flash');
+            setTimeout(function(){ el.classList.remove('flash'); }, 250);
+            // v248: Bridge — score update event
+            if (window.CricNodeBridge) {
+                try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                    type: 'SCORE_UPDATE', timestamp: Date.now(),
+                    innings: isSecond ? 2 : 1,
+                    overs: currentOvers,
+                    score: sc,
+                    details: { previousScore: lastScore }
+                })); } catch(e) {}
+            }
+        }
+        lastScore = sc;
+        txt('scoreMain', sc);
+        txt('ovSmall', currentOvers + ' ov');
+        txt('overs', currentOvers);
+
+        // Bowler
+        txt('bowlName', clean(v.bowlerName)||'\u2014');
+        txt('bowlW', v.bowlerWickets||'0');
+        txt('bowlR', v.bowlerRuns||'0');
+        txt('bowlOv', v.bowlerOvers ? '(' + v.bowlerOvers + ')' : '');
+
+        renderBalls(balls);
+
+        // v248: Bridge — boundary detection from ball stack
+        if (window.CricNodeBridge && balls && balls.length > 0) {
+            var latestBall = String(balls[balls.length - 1]);
+            var bKey = balls.length + ':' + latestBall;
+            if (bKey !== window._cnLastBallKey) {
+                window._cnLastBallKey = bKey;
+                var bType = null;
+                if (latestBall === '4') bType = 'BOUNDARY_4';
+                else if (latestBall === '6') bType = 'BOUNDARY_6';
+                if (bType) {
+                    try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                        type: bType, timestamp: Date.now(),
+                        innings: isSecond ? 2 : 1,
+                        overs: currentOvers,
+                        score: sc,
+                        details: { striker: clean(v.batsman1Name)||'' }
+                    })); } catch(e) {}
+                }
+            }
+        }
+
+        // Info strip
+        var infoMain = document.getElementById('infoMain');
+        if (isEnded && (v.result || v.shortResult)) {
+            infoMain.innerHTML = '<span class="result-txt">' + (v.shortResult || v.result) + '</span>';
+        } else if (toBool(v.isSuperOver)) {
+            infoMain.innerHTML = '<span class="so-pill">SUPER OVER</span>';
+        } else if (isSecondRaw && !isEnded) {
+            var t1sc = (v.t1Total||'0') + '/' + (v.t1Wickets||'0');
+            infoMain.innerHTML =
+                '<span class="inn1-pill">' + (v.t1Code||'T1') + ' ' + t1sc + '</span>' +
+                '<span class="chase-txt">' + batCode + ' NEED ' + (v.requiredRuns||'?') + ' FROM ' + (v.remainingOvers||'?') + ' OVERS &nbsp;' + (v.RRR||'--') + ' RRR</span>';
+        } else {
+            infoMain.innerHTML = '<span class="teams">' + (clean(v.t1Name)||'T1') + ' &nbsp;\u2022&nbsp; ' + (clean(v.t2Name)||'T2') + '</span>';
+        }
+
+        // Side panel — partnership (gated by feature flag)
+        var cp = v.currentPartnershipMap;
+        if (feat.sidepanel && cp && cp.partnershipTotalRuns) {
+            txt('spPartRuns', cp.partnershipTotalRuns + ' (' + (cp.partnershipTotalBalls||'0') + ' balls)');
+            var det = '';
+            if (cp.partnershipBatsman1Name) det += cp.partnershipBatsman1Name + ': ' + (cp.partnershipBatsman1ContributionRuns||'0') + ' (' + (cp.partnershipBatsman1ContributionBalls||'0') + ')\n';
+            if (cp.partnershipBatsman2Name) det += cp.partnershipBatsman2Name + ': ' + (cp.partnershipBatsman2ContributionRuns||'0') + ' (' + (cp.partnershipBatsman2ContributionBalls||'0') + ')';
+            document.getElementById('spPartDetail').innerText = det;
+            document.getElementById('sidePanel').classList.add('vis');
+        }
+
+        // Side panel — last wicket
+        if (feat.sidepanel && toBool(v.lastOutIsOut) && v.lastOutName) {
+            document.getElementById('spLastWicket').style.display = 'block';
+            im('spLwPhoto', logoUrl(v.lastOutProfileImange));
+            txt('spLwName', v.lastOutName + ' ' + (v.lastOutRuns||'0') + '(' + (v.lastOutBalls||'0') + ')');
+            var lf = '';
+            if (v.lastOutFours && v.lastOutFours !== '0') lf += v.lastOutFours + 'x4 ';
+            if (v.lastOUtSixers && v.lastOUtSixers !== '0') lf += v.lastOUtSixers + 'x6';
+            txt('spLwFig', lf.trim());
+            txt('spLwHow', stripHtml(v.lastOutString||''));
+        }
+
+        // v249: Bridge — BALL_UPDATE with full match state on every update
+        if (window.CricNodeBridge) {
+            var currentOvCC = v.overs || '';
+            var scCC = (v.tTotal||'0')+'/'+(v.tWickets||'0');
+            var stateKey = scCC + '@' + currentOvCC;
+            if (stateKey !== window._cnLastStateKey) {
+                window._cnLastStateKey = stateKey;
+                var details = {
+                    striker: clean(v.batsman1Name)||'', strikerRuns: String(v.batsman1Runs||0),
+                    strikerBalls: String(v.batsman1Balls||0),
+                    nonStriker: clean(v.batsman2Name)||'', nonStrikerRuns: String(v.batsman2Runs||0),
+                    nonStrikerBalls: String(v.batsman2Balls||0),
+                    bowler: clean(v.bowlerName)||'', bowlerOvers: v.bowlerOvers||'',
+                    bowlerRuns: String(v.bowlerRuns||0), bowlerWickets: String(v.bowlerWickets||0),
+                    battingTeam: clean(isSecond ? (v.t2Name||'') : (v.t1Name||'')),
+                    bowlingTeam: clean(isSecond ? (v.t1Name||'') : (v.t2Name||'')),
+                    runRate: v.runrate||''
+                };
+                if (balls && balls.length > 0) details.recentOver = balls.join(' ');
+                if (isSecondRaw) {
+                    details.target = String(parseInt(v.t1Total||0,10)+1);
+                    if (v.requiredRuns) details.requiredRuns = String(v.requiredRuns);
+                    if (v.RRR) details.requiredRunRate = v.RRR;
+                }
+                var cp = v.currentPartnershipMap;
+                if (cp && cp.partnershipTotalRuns) {
+                    details.partnership = cp.partnershipTotalRuns+'('+String(cp.partnershipTotalBalls||0)+')';
+                }
+                try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                    type: 'BALL_UPDATE', timestamp: Date.now(),
+                    innings: isSecond ? 2 : 1,
+                    overs: currentOvCC, score: scCC,
+                    details: details
+                })); } catch(e) {}
+            }
+        }
+
+        showLive();
+    }
+
+    // --- MAIN UPDATE ---
+    function update(data) {
+        var v = data.values;
+        var cfg = data.overlayConfig;
+        if (!v) {
+            // Use team names from URL params to show the pre-match bar
+            if (team1Param && team2Param) {
+                showWait(decodeURIComponent(team1Param) + ' vs ' + decodeURIComponent(team2Param),
+                    'Waiting for match data...');
+            } else {
+                showWait('No Data', 'Waiting for match data...');
+            }
+            startDiscovery();
+            return;
+        }
+
+        // v252: Guard against pre-match state — CricClubs API returns values with
+        // all-zero fields before scoring begins. Without this, the overlay shows
+        // an empty "0/0 (0.0)" scorecard instead of waiting for the first delivery.
+        // DCL has equivalent guard at its line 1157-1159.
+        var isEnded = toBool(v.isMatchEnded);
+        if (!isEnded && !v.batsman1Name && !v.bowlerName && String(v.overs||'0.0') === '0.0') {
+            var t1 = clean(v.t1Name || 'Team 1');
+            var t2 = clean(v.t2Name || 'Team 2');
+            var waitMsg = discoveryActive ? 'Game not yet live \u2014 checking for updates...'
+                                          : 'Waiting for scoring to begin...';
+            showWait(t1 + ' vs ' + t2, waitMsg);
+            startDiscovery();
+            return;
+        }
+
+        applyColors(cfg);
+
+        var isSecond = toBool(v.isSecondInningsStarted);
+
+        // Derive t1/t2 logos from API's batting-order logos
+        var logos = getTeamLogos(v);
+
+        // Match ended
+        if (feat.result && isEnded && prevMatchEnded !== '1') {
+            prevMatchEnded = '1';
+            doResult(v, cfg, logos);
+            // v248: Bridge — match result event
+            if (window.CricNodeBridge) {
+                try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                    type: 'MATCH_RESULT', timestamp: Date.now(),
+                    innings: isSecond ? 2 : 1,
+                    overs: v.overs || '',
+                    score: (v.tTotal||'0')+'/'+(v.tWickets||'0'),
+                    details: { result: v.result || v.shortResult || '' }
+                })); } catch(e) {}
+            }
+        }
+
+        // Match intro (first load, not ended)
+        if (feat.intro && !introShown && !isEnded) {
+            doIntro(v, cfg, logos);
+        }
+        if (!feat.intro) introShown = true; // skip intro silently
+
+        // Wicket event
+        var lastOutId = v.lastOutID ? String(v.lastOutID) : null;
+        if (feat.wicket && lastOutId && prevLastOutId && lastOutId !== prevLastOutId && toBool(v.lastOutIsOut)) {
+            doWicket(v);
+            // v248: Bridge — wicket event
+            if (window.CricNodeBridge) {
+                try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                    type: 'WICKET', timestamp: Date.now(),
+                    innings: isSecond ? 2 : 1,
+                    overs: v.overs || '',
+                    score: (v.tTotal||'0')+'/'+(v.tWickets||'0'),
+                    details: { playerName: v.lastOutName||'', dismissalType: v.lastOutString||'',
+                               runs: v.lastOutRuns||'0', balls: v.lastOutBalls||'0' }
+                })); } catch(e) {}
+            }
+        }
+        prevLastOutId = lastOutId;
+
+        // Innings break — persistent while first innings done + second not started
+        if (feat.innings && isInningsBreak(v)) {
+            showInningsBreak(v, cfg, logos);
+            // v248: Bridge — innings break event (fire once)
+            if (window.CricNodeBridge && !window._cnInnBridgeFired) {
+                window._cnInnBridgeFired = true;
+                try { CricNodeBridge.onMatchEvent(JSON.stringify({
+                    type: 'INNINGS_BREAK', timestamp: Date.now(),
+                    innings: 1,
+                    overs: v.t1Overs || '',
+                    score: (v.t1Total||'0')+'/'+(v.t1Wickets||'0'),
+                    details: { target: String(parseInt(v.t1Total||0,10)+1) }
+                })); } catch(e) {}
+            }
+        } else {
+            hideInningsBreak();
+            window._cnInnBridgeFired = false;
+        }
+
+        // New player intros (batsman/bowler changes)
+        if (feat.player && !isEnded && !isInningsBreak(v)) {
+            checkPlayerIntros(v);
+        } else if (!feat.player) {
+            // Still track IDs so we don't fire stale intros if re-enabled
+            prevB1Id = v.batsman1ID ? String(v.batsman1ID) : null;
+            prevB2Id = v.batsman2ID ? String(v.batsman2ID) : null;
+            prevBowlId = v.bowlerID ? String(v.bowlerID) : null;
+        }
+
+        // Always update live bar
+        updateLive(v, data.balls, logos);
+    }
+
+    // --- POLL ---
+    function poll() {
+        fetch(API + '?clubId=' + clubId + '&matchId=' + matchId)
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(d) {
+                errCnt = 0; lastData = d; interval = pollMs;
+                document.getElementById('conn').className = 'conn';
+                update(d);
+            })
+            .catch(function(e) {
+                errCnt++;
+                document.getElementById('conn').className = errCnt >= 3 ? 'conn err' : 'conn warn';
+                if (errCnt >= 3) interval = 30000;
+                if (!lastData) {
+                    txt('wM', 'Reconnecting... (' + errCnt + ')');
+                    document.getElementById('wM').classList.add('error');
+                    startDiscovery();
+                }
+            })
+            .finally(function() { if (!stopped) setTimeout(poll, interval); });
+    }
+
+    // v250: Periodic STATE_SNAPSHOT every 5 seconds
+    setInterval(function() {
+        if (!window.CricNodeBridge || !lastData) return;
+        var v = lastData.values;
+        if (!v) return;
+        var isSecond = !toBool(v.isMatchEnded) && toBool(v.isSecondInningsStarted);
+        var sc = (v.tTotal||'0')+'/'+(v.tWickets||'0');
+        var ov = v.overs || '0.0';
+        var details = {
+            striker: clean(v.batsman1Name)||'', strikerRuns: String(v.batsman1Runs||0),
+            strikerBalls: String(v.batsman1Balls||0),
+            nonStriker: clean(v.batsman2Name)||'', nonStrikerRuns: String(v.batsman2Runs||0),
+            nonStrikerBalls: String(v.batsman2Balls||0),
+            bowler: clean(v.bowlerName)||'', bowlerOvers: v.bowlerOvers||'',
+            bowlerRuns: String(v.bowlerRuns||0), bowlerWickets: String(v.bowlerWickets||0),
+            battingTeam: clean(isSecond ? (v.t2Name||'') : (v.t1Name||'')),
+            bowlingTeam: clean(isSecond ? (v.t1Name||'') : (v.t2Name||'')),
+            runRate: v.runrate||'',
+            totalOvers: v.totalOvers||''
+        };
+        if (lastData.balls && lastData.balls.length > 0) details.recentOver = lastData.balls.join(' ');
+        if (isSecond) {
+            details.target = String(parseInt(v.t1Total||0,10)+1);
+            if (v.requiredRuns) details.requiredRuns = String(v.requiredRuns);
+            if (v.RRR) details.requiredRunRate = v.RRR;
+        }
+        var cp = v.currentPartnershipMap;
+        if (cp && cp.partnershipTotalRuns) {
+            details.partnership = cp.partnershipTotalRuns+'('+String(cp.partnershipTotalBalls||0)+')';
+        }
+        try { CricNodeBridge.onMatchEvent(JSON.stringify({
+            type: 'STATE_SNAPSHOT', timestamp: Date.now(),
+            innings: isSecond ? 2 : 1, overs: ov, score: sc, details: details
+        })); } catch(e) {}
+    }, 5000);
+
+    // Show pre-match bar immediately if we have team names (scheduled game),
+    // otherwise show the generic loading box
+    if (team1Param && team2Param) {
+        showWait(decodeURIComponent(team1Param) + ' vs ' + decodeURIComponent(team2Param),
+            'Loading match...');
+    }
+    show();
+    poll();
+})();
+</script>
+</body>
+</html>
