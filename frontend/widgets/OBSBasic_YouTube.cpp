@@ -18,6 +18,7 @@
 ******************************************************************************/
 
 #include "OBSBasic.hpp"
+#include "CricNodeOverlayManager.hpp"
 
 #ifdef YOUTUBE_ENABLED
 #include <dialogs/OBSYoutubeActions.hpp>
@@ -203,6 +204,35 @@ void OBSBasic::SetupBroadcast()
 #ifdef YOUTUBE_ENABLED
 	Auth *const auth = GetAuth();
 	if (IsYouTubeService(auth->service())) {
+		/* CricNode: Auto-populate YouTube title/description from active overlay */
+		if (cricnodeOverlayDock) {
+			auto *mgr = qobject_cast<CricNodeOverlayManager *>(
+				cricnodeOverlayDock->widget());
+			if (mgr) {
+				const auto &overlays = mgr->GetOverlays();
+				for (auto &ov : overlays) {
+					if (ov.enabled && ov.type == "scorecard" &&
+					    !ov.team1.empty() && !ov.team2.empty()) {
+						std::string title = ov.team1 + " vs " + ov.team2;
+						std::string desc = title;
+						if (!ov.matchDate.empty()) {
+							title += " - " + ov.matchDate;
+							desc += "\n" + ov.matchDate;
+						}
+						desc += "\nPowered by CricNode";
+
+						config_set_string(activeConfiguration,
+							"YouTube", "Title", title.c_str());
+						config_set_string(activeConfiguration,
+							"YouTube", "Description", desc.c_str());
+						config_set_bool(activeConfiguration,
+							"YouTube", "RememberSettings", true);
+						break;
+					}
+				}
+			}
+		}
+
 		OBSYoutubeActions dialog(this, auth, broadcastReady);
 		connect(&dialog, &OBSYoutubeActions::ok, this, &OBSBasic::YouTubeActionDialogOk);
 		dialog.exec();

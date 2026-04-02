@@ -308,8 +308,9 @@ void CricNodeOverlayManager::AddScorecardOverlay()
 		else if (fixture.provider == "playhq")
 			providerName = "PlayHQ";
 
-		overlay.name = providerName.toStdString() + " - " +
-			       fixture.team1 + " vs " + fixture.team2;
+		overlay.name = fixture.team1 + " vs " + fixture.team2;
+		if (!fixture.date.empty())
+			overlay.name += " - " + fixture.date;
 
 		/* If the fixture is scheduled (not live), start monitoring */
 		if (fixture.status == "SCHEDULED" &&
