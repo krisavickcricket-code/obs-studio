@@ -1,5 +1,6 @@
 #include "CricNodeFixtureMonitor.hpp"
 
+#include <QDate>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -83,9 +84,37 @@ bool CricNodeFixtureMonitor::IsMonitoring(const std::string &overlayId) const
 
 void CricNodeFixtureMonitor::Poll()
 {
+	QDate today = QDate::currentDate();
+
 	for (auto &fixture : monitoredFixtures) {
 		if (fixture.isLive)
 			continue;
+
+		/* Skip fixtures whose match date has passed (already played) */
+		if (!fixture.matchDate.empty()) {
+			QDate matchDate = QDate::fromString(
+				QString::fromStdString(fixture.matchDate),
+				Qt::ISODate);
+			if (!matchDate.isValid()) {
+				/* Try common formats: "Apr 1, 2026", "2026-04-01", "01/04/2026" */
+				matchDate = QDate::fromString(
+					QString::fromStdString(fixture.matchDate),
+					"MMM d, yyyy");
+			}
+			if (!matchDate.isValid()) {
+				matchDate = QDate::fromString(
+					QString::fromStdString(fixture.matchDate),
+					"MM/dd/yyyy");
+			}
+			if (matchDate.isValid() && matchDate < today) {
+				blog(LOG_INFO,
+				     "[CricNode] Skipping past fixture: %s vs %s (date=%s)",
+				     fixture.team1.c_str(),
+				     fixture.team2.c_str(),
+				     fixture.matchDate.c_str());
+				continue;
+			}
+		}
 
 		if (fixture.provider == "dcl") {
 			PollDcl(fixture);
@@ -210,24 +239,67 @@ void CricNodeFixtureMonitor::CheckDclResult(const QByteArray &data,
 		QJsonObject m = val.toObject();
 		QString id = QString::number(m["id"].toInt());
 
-		if (id.toStdString() == fixture.matchId) {
-			bool isLive = (m["is_live"].toInt() == 1);
-			bool hasScorecard = !m["is_match_ended"].toBool() && isLive;
+		if (id.toStdString() != fixture.matchId)
+			continue;
 
-			if (isLive && !fixture.isLive) {
-				fixture.isLive = true;
-				blog(LOG_INFO,
-				     "[CricNode] DCL fixture went live: %s vs %s (matchId=%s)",
-				     fixture.team1.c_str(),
-				     fixture.team2.c_str(),
-				     fixture.matchId.c_str());
-
-				emit FixtureWentLive(
-					QString::fromStdString(fixture.overlayId),
-					QString::fromStdString(fixture.matchId),
-					"dcl");
-			}
+		/* Skip completed matches */
+		if (m["is_match_ended"].toBool()) {
+			blog(LOG_INFO,
+			     "[CricNode] DCL fixture already completed, skipping: %s vs %s",
+			     fixture.team1.c_str(),
+			     fixture.team2.c_str());
 			break;
 		}
+
+		/* Verify team names match (case-insensitive contains) */
+		QString t1 = m["team1Name"].toString().toLower();
+		QString t2 = m["team2Name"].toString().toLower();
+		QString ft1 = QString::fromStdString(fixture.team1).toLower();
+		QString ft2 = QString::fromStdString(fixture.team2).toLower();
+
+		bool teamsMatch = (t1.contains(ft1) || ft1.contains(t1)) &&
+				  (t2.contains(ft2) || ft2.contains(t2));
+		/* Also check reversed order */
+		if (!teamsMatch)
+			teamsMatch = (t1.contains(ft2) || ft2.contains(t1)) &&
+				     (t2.contains(ft1) || ft1.contains(t2));
+
+		if (!teamsMatch) {
+			blog(LOG_WARNING,
+			     "[CricNode] DCL team mismatch: expected '%s vs %s', got '%s vs %s'",
+			     fixture.team1.c_str(), fixture.team2.c_str(),
+			     t1.toUtf8().constData(), t2.toUtf8().constData());
+			break;
+		}
+
+		/* Verify match date matches (if available) */
+		if (!fixture.matchDate.empty()) {
+			QString matchDateStr = m["date"].toString();
+			if (!matchDateStr.isEmpty() &&
+			    !matchDateStr.contains(
+				    QString::fromStdString(fixture.matchDate))) {
+				blog(LOG_WARNING,
+				     "[CricNode] DCL date mismatch: expected '%s', got '%s'",
+				     fixture.matchDate.c_str(),
+				     matchDateStr.toUtf8().constData());
+				break;
+			}
+		}
+
+		bool isLive = (m["is_live"].toInt() == 1);
+		if (isLive && !fixture.isLive) {
+			fixture.isLive = true;
+			blog(LOG_INFO,
+			     "[CricNode] DCL fixture went live: %s vs %s (matchId=%s)",
+			     fixture.team1.c_str(),
+			     fixture.team2.c_str(),
+			     fixture.matchId.c_str());
+
+			emit FixtureWentLive(
+				QString::fromStdString(fixture.overlayId),
+				QString::fromStdString(fixture.matchId),
+				"dcl");
+		}
+		break;
 	}
 }

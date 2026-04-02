@@ -59,6 +59,9 @@
 #include <qt-wrappers.hpp>
 
 #include <QActionGroup>
+#include <QLabel>
+#include <QMenuBar>
+#include <QPainter>
 #include <QThread>
 #include <QWidgetAction>
 
@@ -1156,6 +1159,77 @@ void OBSBasic::OBSInit()
 
 	connect(ui->preview, &OBSQTDisplay::DisplayCreated, this, addDisplay);
 
+	/* CricNode preview logo is rendered via gs_draw_sprite in RenderMain */
+
+	/* CricNode: Menu bar banner (full-width black bar with centered logo) */
+	{
+		auto *bannerLabel = new QLabel(ui->menubar);
+		bannerLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+		class BannerResizeFilter : public QObject {
+			QLabel *banner;
+			QPixmap srcBanner;
+
+		public:
+			BannerResizeFilter(QLabel *b, QObject *parent)
+				: QObject(parent),
+				  banner(b)
+			{
+				srcBanner = QPixmap(
+					":/res/images/cricnode_banner.png");
+			}
+			bool eventFilter(QObject *obj, QEvent *event) override
+			{
+				if (event->type() == QEvent::Resize) {
+					auto *w = static_cast<QWidget *>(obj);
+					int barW = w->width();
+					int barH = w->height();
+					if (barH < 4 || barW < 4)
+						return QObject::eventFilter(
+							obj, event);
+
+					/* Full-width black bar */
+					QPixmap full(barW, barH);
+					full.fill(Qt::black);
+					QPainter painter(&full);
+
+					/* Scale banner to fill bar height */
+					QPixmap scaled = srcBanner.scaledToHeight(
+						barH,
+						Qt::SmoothTransformation);
+
+					/* "PC Recorder" text */
+					QFont font("Segoe UI",
+						   barH > 24 ? 12 : 9,
+						   QFont::Bold);
+					QFontMetrics fm(font);
+					QString suffix = "  PC Recorder";
+					int textW =
+						fm.horizontalAdvance(suffix);
+					int contentW = scaled.width() + textW;
+
+					/* Center content in the full bar */
+					int startX = (barW - contentW) / 2;
+					painter.drawPixmap(startX, 0, scaled);
+					painter.setFont(font);
+					painter.setPen(QColor("#94a3b8"));
+					painter.drawText(
+						startX + scaled.width(), 0,
+						textW, barH,
+						Qt::AlignVCenter, suffix);
+					painter.end();
+
+					banner->setPixmap(full);
+					banner->setFixedSize(barW, barH);
+					banner->move(0, 0);
+				}
+				return QObject::eventFilter(obj, event);
+			}
+		};
+		ui->menubar->installEventFilter(
+			new BannerResizeFilter(bannerLabel, ui->menubar));
+	}
+
 	/* Show the main window, unless the tray icon isn't available
 	 * or neither the setting nor flag for starting minimized is set. */
 	bool sysTrayEnabled = config_get_bool(App()->GetUserConfig(), "BasicWindow", "SysTrayEnabled");
@@ -1583,6 +1657,7 @@ void OBSBasic::applicationShutdown() noexcept
 	gs_vertexbuffer_destroy(leftLine);
 	gs_vertexbuffer_destroy(topLine);
 	gs_vertexbuffer_destroy(rightLine);
+	gs_texture_destroy(cricnodePreviewLogo);
 	obs_leave_graphics();
 
 	/* When shutting down, sometimes source references can get in to the

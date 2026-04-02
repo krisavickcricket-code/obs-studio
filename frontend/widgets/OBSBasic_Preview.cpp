@@ -192,6 +192,65 @@ void OBSBasic::RenderMain(void *data, uint32_t, uint32_t)
 	if (window->drawSpacingHelpers)
 		window->ui->preview->DrawSpacingHelpers();
 
+	/* CricNode: Draw preview logo (top-center inside video area) */
+	{
+		if (!window->cricnodePreviewLogo) {
+			std::string path;
+			GetDataFilePath("images/cricnode_preview_logo.png",
+					path);
+			if (!path.empty())
+				window->cricnodePreviewLogo =
+					gs_texture_create_from_file(
+						path.c_str());
+		}
+		if (window->cricnodePreviewLogo) {
+			uint32_t texW = gs_texture_get_width(
+				window->cricnodePreviewLogo);
+			uint32_t texH = gs_texture_get_height(
+				window->cricnodePreviewLogo);
+
+			/* Draw inside the video viewport */
+			float baseW = float(ovi.base_width);
+			float baseH = float(ovi.base_height);
+
+			/* Logo ~3% of video height */
+			float logoH = baseH * 0.03f;
+			float logoScale = logoH / float(texH);
+			float logoW = float(texW) * logoScale;
+
+			/* Center horizontally, slight margin from top */
+			float drawX = (baseW - logoW) / 2.0f;
+			float drawY = baseH * 0.01f;
+
+			gs_ortho(0.0f, baseW, 0.0f, baseH, -100.0f, 100.0f);
+			gs_set_viewport(window->previewX, window->previewY,
+					window->previewCX, window->previewCY);
+
+			gs_blend_state_push();
+			gs_enable_blending(true);
+			gs_blend_function(GS_BLEND_SRCALPHA,
+					  GS_BLEND_INVSRCALPHA);
+
+			gs_effect_t *effect =
+				obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_eparam_t *image =
+				gs_effect_get_param_by_name(effect, "image");
+			gs_effect_set_texture(image,
+					      window->cricnodePreviewLogo);
+
+			gs_matrix_push();
+			gs_matrix_translate3f(drawX, drawY, 0.0f);
+			gs_matrix_scale3f(logoScale, logoScale, 1.0f);
+
+			while (gs_effect_loop(effect, "Draw"))
+				gs_draw_sprite(window->cricnodePreviewLogo, 0,
+					       0, 0);
+
+			gs_matrix_pop();
+			gs_blend_state_pop();
+		}
+	}
+
 	/* --------------------------------------- */
 
 	gs_projection_pop();

@@ -813,6 +813,8 @@ private:
 	float previewScale = 0.0f;
 	bool drawSafeAreas = false;
 
+	gs_texture_t *cricnodePreviewLogo = nullptr;
+
 	QColor selectionColor;
 	QColor cropColor;
 	QColor hoverColor;

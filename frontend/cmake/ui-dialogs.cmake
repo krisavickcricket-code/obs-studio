@@ -47,4 +47,6 @@ target_sources(
     dialogs/CricNodeFixtureBrowser.hpp
     dialogs/CricNodeOverlaySettings.cpp
     dialogs/CricNodeOverlaySettings.hpp
+    dialogs/CricNodeWiFiCameraDialog.cpp
+    dialogs/CricNodeWiFiCameraDialog.hpp
 )

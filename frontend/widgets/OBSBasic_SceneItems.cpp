@@ -22,6 +22,7 @@
 #include "OBSProjector.hpp"
 
 #include <components/VolumeControl.hpp>
+#include <dialogs/CricNodeWiFiCameraDialog.hpp>
 #include <dialogs/NameDialog.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
 #include <dialogs/OBSBasicSourceSelect.hpp>
@@ -797,6 +798,39 @@ QMenu *OBSBasic::CreateAddSourcePopupMenu()
 
 	QMenu *popup = new QMenu(QTStr("AddSource"), this);
 	QMenu *deprecated = new QMenu(QTStr("Deprecated"), popup);
+
+	/* CricNode: WiFi Camera shortcut at the top */
+	QAction *wifiCameraAction =
+		new QAction(QTStr("WiFiCamera"), this);
+	wifiCameraAction->setIcon(
+		QIcon(":/res/images/cricnode_globe.png"));
+	connect(wifiCameraAction, &QAction::triggered, this, [this]() {
+		CricNodeWiFiCameraDialog dlg(this);
+		if (dlg.exec() != QDialog::Accepted)
+			return;
+
+		OBSScene scene = GetCurrentScene();
+		if (!scene)
+			return;
+
+		OBSDataAutoRelease settings = obs_data_create();
+		obs_data_set_bool(settings, "is_local_file", false);
+		obs_data_set_string(
+			settings, "input",
+			dlg.GetRtspUrl().toUtf8().constData());
+		obs_data_set_int(settings, "reconnect_delay_sec",
+				 dlg.GetReconnectDelay());
+		obs_data_set_bool(settings, "close_when_inactive", false);
+
+		OBSSourceAutoRelease src = obs_source_create(
+			"ffmpeg_source",
+			dlg.GetCameraName().toUtf8().constData(), settings,
+			nullptr);
+		if (src)
+			obs_scene_add(scene, src);
+	});
+	popup->addAction(wifiCameraAction);
+	popup->addSeparator();
 
 	auto getActionAfter = [](QMenu *menu, const QString &name) {
 		QList<QAction *> actions = menu->actions();

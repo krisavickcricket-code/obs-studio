@@ -12,4 +12,7 @@ set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY FALSE)
 set(CPACK_GENERATOR ZIP)
 set(CPACK_THREADS 0)
 
+# CricNode portable launcher
+install(FILES "${CMAKE_SOURCE_DIR}/additional_install_files/exec64r/CricNodePC.bat" DESTINATION .)
+
 include(CPack)

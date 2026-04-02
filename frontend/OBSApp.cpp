@@ -1102,18 +1102,7 @@ void OBSApp::AppInit()
 
 void OBSApp::checkForUncleanShutdown()
 {
-	bool hasUncleanShutdown = crashHandler_->hasUncleanShutdown();
-	bool hasNewCrashLog = crashHandler_->hasNewCrashLog();
-
-	if (hasUncleanShutdown) {
-		UncleanLaunchAction launchAction = handleUncleanShutdown(hasNewCrashLog);
-
-		safe_mode = launchAction.useSafeMode;
-
-		if (launchAction.sendCrashReport) {
-			crashHandler_->uploadLastCrashLog();
-		}
-	}
+	/* CricNode: Skip crash/safe-mode dialog, always launch normally */
 }
 
 const char *OBSApp::GetRenderModule() const

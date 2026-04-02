@@ -581,6 +581,7 @@ std::string CricNodeOverlayManager::GetScorecardUrl(const CricNodeOverlay &overl
 		htmlFile = basePath + "/cricclubs_scorecard.html";
 		params = "?matchId=" + overlay.matchId + "&clubId=" + overlay.clubId +
 			 "&team1=" + overlay.team1 + "&team2=" + overlay.team2 +
+			 "&matchDate=" + overlay.matchDate +
 			 featureParams;
 	} else if (overlay.scorecardProvider == "playcricket") {
 		htmlFile = basePath + "/playcricket_scorecard.html";
