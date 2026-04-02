@@ -865,7 +865,8 @@ void OBSBasicSettings::on_connectAccount_clicked()
 			if (!main->GetYouTubeAppDock()) {
 				main->NewYouTubeAppDock();
 			}
-			main->GetYouTubeAppDock()->AccountConnected();
+			if (main->GetYouTubeAppDock())
+				main->GetYouTubeAppDock()->AccountConnected();
 		}
 #endif
 
@@ -913,8 +914,10 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 		if (!main->GetYouTubeAppDock()) {
 			main->NewYouTubeAppDock();
 		}
-		main->GetYouTubeAppDock()->AccountDisconnected();
-		main->GetYouTubeAppDock()->Update();
+		if (main->GetYouTubeAppDock()) {
+			main->GetYouTubeAppDock()->AccountDisconnected();
+			main->GetYouTubeAppDock()->Update();
+		}
 	}
 #endif
 }

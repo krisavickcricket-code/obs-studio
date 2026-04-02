@@ -110,47 +110,7 @@ void YoutubeAuth::LoadUI()
 	if (uiLoaded)
 		return;
 
-#ifdef BROWSER_AVAILABLE
-	if (!cef)
-		return;
-
-	OBSBasic::InitBrowserPanelSafeBlock();
-	OBSBasic *main = OBSBasic::Get();
-
-	QCefWidget *browser;
-
-	QSize size = main->frameSize();
-	QPoint pos = main->pos();
-
-	chat = new YoutubeChatDock(QTStr("Auth.Chat"));
-	chat->setObjectName(YOUTUBE_CHAT_DOCK_NAME);
-	chat->resize(300, 600);
-	chat->setMinimumSize(200, 300);
-	chat->setAllowedAreas(Qt::AllDockWidgetAreas);
-
-	browser = cef->create_widget(chat, YOUTUBE_CHAT_PLACEHOLDER_URL, panel_cookies);
-
-	chat->SetWidget(browser);
-	main->AddDockWidget(chat, Qt::RightDockWidgetArea);
-
-	chat->setFloating(true);
-	chat->move(pos.x() + size.width() - chat->width() - 50, pos.y() + 50);
-
-	if (firstLoad) {
-		chat->setVisible(true);
-	}
-#endif
-
-	if (!main->GetYouTubeAppDock()) {
-		main->NewYouTubeAppDock();
-	}
-
-	if (!firstLoad) {
-		const char *dockStateStr = config_get_string(main->Config(), service(), "DockState");
-		QByteArray dockState = QByteArray::fromBase64(QByteArray(dockStateStr));
-		main->restoreState(dockState);
-	}
-
+	/* CricNode: Skip YouTube chat dock and app dock creation */
 	uiLoaded = true;
 }
 

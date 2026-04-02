@@ -219,12 +219,20 @@ void OBSBasic::SetupBroadcast()
 							title += " - " + ov.matchDate;
 							desc += "\n" + ov.matchDate;
 						}
-						desc += "\nPowered by CricNode";
+						desc += "\nPowered by CricNode\nVisit us at https://cricnode.com/";
 
 						config_set_string(activeConfiguration,
 							"YouTube", "Title", title.c_str());
 						config_set_string(activeConfiguration,
 							"YouTube", "Description", desc.c_str());
+						/* CricNode defaults: public, sports, normal latency */
+						config_set_string(activeConfiguration,
+							"YouTube", "Privacy", "public");
+						config_set_string(activeConfiguration,
+							"YouTube", "CategoryID", "17");
+						config_set_string(activeConfiguration,
+							"YouTube", "Latency", "normal");
+
 						config_set_bool(activeConfiguration,
 							"YouTube", "RememberSettings", true);
 						break;
@@ -252,23 +260,7 @@ YouTubeAppDock *OBSBasic::GetYouTubeAppDock()
 
 void OBSBasic::NewYouTubeAppDock()
 {
-	if (!cef_js_avail)
-		return;
-
-	/* make sure that the youtube app dock can't be immediately recreated.
-	 * dumb hack. blame chromium. or this particular dock. or both. if CEF
-	 * creates/destroys/creates a widget too quickly it can lead to a
-	 * crash. */
-	uint64_t ts = os_gettime_ns();
-	if ((ts - lastYouTubeAppDockCreationTime) < (5ULL * SEC_TO_NSEC))
-		return;
-
-	lastYouTubeAppDockCreationTime = ts;
-
-	if (youtubeAppDock)
-		RemoveDockWidget(youtubeAppDock->objectName());
-
-	youtubeAppDock = new YouTubeAppDock("YouTube Live Control Panel");
+	/* CricNode: Don't show YouTube docks */
 }
 
 void OBSBasic::DeleteYouTubeAppDock()

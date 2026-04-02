@@ -257,7 +257,7 @@ void OBSBasic::StreamingStart()
 	OnActivate();
 
 #ifdef YOUTUBE_ENABLED
-	if (YouTubeAppDock::IsYTServiceSelected())
+	if (YouTubeAppDock::IsYTServiceSelected() && youtubeAppDock)
 		youtubeAppDock->IngestionStarted();
 #endif
 
@@ -345,7 +345,7 @@ void OBSBasic::StreamingStop(int code, QString last_error)
 	OnDeactivate();
 
 #ifdef YOUTUBE_ENABLED
-	if (YouTubeAppDock::IsYTServiceSelected())
+	if (YouTubeAppDock::IsYTServiceSelected() && youtubeAppDock)
 		youtubeAppDock->IngestionStopped();
 #endif
 

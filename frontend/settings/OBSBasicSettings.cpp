@@ -3815,7 +3815,8 @@ void OBSBasicSettings::UpdateYouTubeAppDockSettings()
 			if (!main->GetYouTubeAppDock()) {
 				main->NewYouTubeAppDock();
 			}
-			main->GetYouTubeAppDock()->SettingsUpdated(!IsYouTubeService(service) || stream1Changed);
+			if (main->GetYouTubeAppDock())
+				main->GetYouTubeAppDock()->SettingsUpdated(!IsYouTubeService(service) || stream1Changed);
 		} else {
 			if (main->GetYouTubeAppDock()) {
 				main->GetYouTubeAppDock()->AccountDisconnected();
