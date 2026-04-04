@@ -403,7 +403,7 @@ bool DownloadWorkerThread()
 
 	const DWORD compressionFlags = WINHTTP_DECOMPRESSION_FLAG_ALL;
 
-	HttpHandle hSession = WinHttpOpen(L"OBS Studio Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+	HttpHandle hSession = WinHttpOpen(L"CricNode PC Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
 					  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	if (!hSession) {
 		downloadThreadFailure = true;
@@ -1154,7 +1154,7 @@ static bool UpdateVSRedists()
 
 	const DWORD compressionFlags = WINHTTP_DECOMPRESSION_FLAG_ALL;
 
-	HttpHandle hSession = WinHttpOpen(L"OBS Studio Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+	HttpHandle hSession = WinHttpOpen(L"CricNode PC Updater/3.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
 					  WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	if (!hSession) {
 		Status(L"VC Redist Update failed: Couldn't create session");
@@ -1258,7 +1258,7 @@ static bool UpdateVSRedists()
 
 static void UpdateRegistryVersion(const Manifest &manifest)
 {
-	const char *regKey = R"(Software\Microsoft\Windows\CurrentVersion\Uninstall\OBS Studio)";
+	const char *regKey = R"(Software\Microsoft\Windows\CurrentVersion\Uninstall\CricNode PC Recorder)";
 	LSTATUS res;
 	HKEY key;
 	char version[32];
@@ -1995,11 +1995,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int)
 
 	if (!IsWindows10OrGreater()) {
 		MessageBox(nullptr,
-			   L"OBS Studio 28 and newer no longer support Windows 7,"
-			   L" Windows 8, or Windows 8.1. You can disable the"
-			   L" following setting to opt out of future updates:"
-			   L" Settings → General → General → Automatically check"
-			   L" for updates on startup",
+			   L"CricNode PC Recorder requires Windows 10 or newer."
+			   L" Windows 7, Windows 8, and Windows 8.1 are not supported.",
 			   L"Unsupported Operating System", MB_ICONWARNING);
 		return 0;
 	}
@@ -2008,7 +2005,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int)
 
 		WinHandle hMutex = OpenMutex(SYNCHRONIZE, false, L"OBSUpdaterRunningAsNonAdminUser");
 		if (hMutex) {
-			MessageBox(nullptr, L"OBS Studio Updater must be run as an administrator.", L"Updater Error",
+			MessageBox(nullptr, L"CricNode PC Recorder Updater must be run as an administrator.", L"Updater Error",
 				   MB_ICONWARNING);
 			return 2;
 		}

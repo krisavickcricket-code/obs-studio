@@ -369,7 +369,7 @@ void YouTubeAppDock::SetInitEvent(streaming_mode_t mode, const char *event, cons
 					%4 });
 		}
 	)""")
-				     .arg("OBS")
+				     .arg("CricNode")
 				     .arg(version.c_str())
 				     .arg(mode == YTSM_ACCOUNT ? "'ACCOUNT'" : "'STREAM_KEY'")
 				     .arg(api_event)

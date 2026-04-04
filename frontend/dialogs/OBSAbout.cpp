@@ -35,14 +35,14 @@ OBSAbout::OBSAbout(QWidget *parent) : QDialog(parent), ui(new Ui::OBSAbout)
 	if (steam) {
 		delete ui->donate;
 	} else {
-		ui->donate->setText("&nbsp;&nbsp;<a href='https://obsproject.com/contribute'>" + QTStr("About.Donate") +
+		ui->donate->setText("&nbsp;&nbsp;<a href='https://github.com/krisavickcricket-code/obs-studio'>" + QTStr("About.Donate") +
 				    "</a>");
 		ui->donate->setTextInteractionFlags(Qt::TextBrowserInteraction);
 		ui->donate->setOpenExternalLinks(true);
 	}
 
 	ui->getInvolved->setText(
-		"&nbsp;&nbsp;<a href='https://github.com/obsproject/obs-studio/blob/master/CONTRIBUTING.rst'>" +
+		"&nbsp;&nbsp;<a href='https://github.com/krisavickcricket-code/obs-studio'>" +
 		QTStr("About.GetInvolved") + "</a>");
 	ui->getInvolved->setTextInteractionFlags(Qt::TextBrowserInteraction);
 	ui->getInvolved->setOpenExternalLinks(true);
@@ -125,7 +125,7 @@ void OBSAbout::ShowAbout()
 void OBSAbout::ShowAuthors()
 {
 	std::string path;
-	QString error = QTStr("About.Error").arg("https://github.com/obsproject/obs-studio/blob/master/AUTHORS");
+	QString error = QTStr("About.Error").arg("https://github.com/krisavickcricket-code/obs-studio/blob/master/AUTHORS");
 
 #ifdef __APPLE__
 	if (!GetDataFilePath("AUTHORS", path)) {
@@ -151,7 +151,7 @@ void OBSAbout::ShowAuthors()
 void OBSAbout::ShowLicense()
 {
 	std::string path;
-	QString error = QTStr("About.Error").arg("https://github.com/obsproject/obs-studio/blob/master/COPYING");
+	QString error = QTStr("About.Error").arg("https://github.com/krisavickcricket-code/obs-studio/blob/master/COPYING");
 
 	if (!GetDataFilePath("license/gplv2.txt", path)) {
 		ui->textBrowser->setPlainText(error);

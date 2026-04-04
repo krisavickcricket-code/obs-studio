@@ -748,8 +748,8 @@ bool OBSBasic::InitBasicConfigDefaults()
 
 	config_set_default_string(activeConfiguration, "SimpleOutput", "FilePath", GetDefaultVideoSavePath().c_str());
 	config_set_default_string(activeConfiguration, "SimpleOutput", "RecFormat2", DEFAULT_CONTAINER);
-	config_set_default_uint(activeConfiguration, "SimpleOutput", "VBitrate", 6000);
-	config_set_default_uint(activeConfiguration, "SimpleOutput", "ABitrate", 128);
+	config_set_default_uint(activeConfiguration, "SimpleOutput", "VBitrate", 10000);
+	config_set_default_uint(activeConfiguration, "SimpleOutput", "ABitrate", 192);
 	config_set_default_bool(activeConfiguration, "SimpleOutput", "UseAdvanced", false);
 	config_set_default_string(activeConfiguration, "SimpleOutput", "Preset", "veryfast");
 	config_set_default_string(activeConfiguration, "SimpleOutput", "NVENCPreset2", "p5");
@@ -780,7 +780,7 @@ bool OBSBasic::InitBasicConfigDefaults()
 	config_set_default_bool(activeConfiguration, "AdvOut", "FFOutputToFile", true);
 	config_set_default_string(activeConfiguration, "AdvOut", "FFFilePath", GetDefaultVideoSavePath().c_str());
 	config_set_default_string(activeConfiguration, "AdvOut", "FFExtension", "mp4");
-	config_set_default_uint(activeConfiguration, "AdvOut", "FFVBitrate", 6000);
+	config_set_default_uint(activeConfiguration, "AdvOut", "FFVBitrate", 10000);
 	config_set_default_uint(activeConfiguration, "AdvOut", "FFVGOPSize", 250);
 	config_set_default_bool(activeConfiguration, "AdvOut", "FFUseRescale", false);
 	config_set_default_bool(activeConfiguration, "AdvOut", "FFIgnoreCompat", false);
