@@ -1325,7 +1325,9 @@ bool OBSApp::IsPortableMode()
 
 bool OBSApp::IsUpdaterDisabled()
 {
-	return opt_disable_updater;
+	/* CricNode: Always disable OBS updater to prevent stock OBS
+	 * from overwriting our customizations */
+	return true;
 }
 
 bool OBSApp::IsMissingFilesCheckDisabled()
